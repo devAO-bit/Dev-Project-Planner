@@ -34,10 +34,14 @@ export default {
                     500: '#ef4444',
                     600: '#dc2626',
                 },
+                border: 'hsl(var(--border))',
+                background: 'hsl(var(--background))',
+                foreground: 'hsl(var(--foreground))',
             },
             fontFamily: {
                 sans: ['Inter', 'system-ui', 'sans-serif'],
             },
+            
         },
     },
     plugins: [],
