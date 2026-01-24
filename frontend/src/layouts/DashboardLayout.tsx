@@ -1,8 +1,20 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Code2, LayoutDashboard, FolderKanban, LogOut, Menu, X } from 'lucide-react';
+import {
+  Code2,
+  LayoutDashboard,
+  FolderKanban,
+  LogOut,
+  Menu,
+  X
+} from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { getInitials } from '@/lib/utils';
 import { useState } from 'react';
+
+const navigation = [
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Projects', href: '/projects', icon: FolderKanban },
+];
 
 export default function DashboardLayout() {
   const location = useLocation();
@@ -10,104 +22,115 @@ export default function DashboardLayout() {
   const { user, logout } = useAuthStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const isActive = (path: string) => location.pathname === path;
+
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Projects', href: '/projects', icon: FolderKanban },
-  ];
-
-  const isActive = (path: string) => location.pathname === path;
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Sidebar - Desktop */}
-      <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
-        <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white border-r border-gray-200 px-6 pb-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* ===== Desktop Sidebar ===== */}
+      <aside className="hidden lg:fixed lg:inset-y-0 lg:z-40 lg:flex lg:w-64">
+        <div className="flex flex-col w-full bg-white/80 backdrop-blur-xl border-r border-gray-200 shadow-sm">
           {/* Logo */}
-          <div className="flex h-16 shrink-0 items-center">
-            <Link to="/dashboard" className="flex items-center gap-2">
-              <div className="flex items-center justify-center w-10 h-10 bg-primary-600 rounded-lg">
-                <Code2 className="w-6 h-6 text-white" />
-              </div>
-              <span className="text-xl font-bold text-gray-900">DevPlanner</span>
-            </Link>
+          <div className="flex items-center gap-3 px-6 py-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-primary-600 to-primary-500 text-white shadow-md">
+              <Code2 className="w-6 h-6" />
+            </div>
+            <span className="text-lg font-bold tracking-tight text-gray-900">
+              DevPlanner
+            </span>
           </div>
 
           {/* Navigation */}
-          <nav className="flex flex-1 flex-col">
-            <ul role="list" className="flex flex-1 flex-col gap-y-7">
-              <li>
-                <ul role="list" className="-mx-2 space-y-1">
-                  {navigation.map((item) => {
-                    const active = isActive(item.href);
-                    return (
-                      <li key={item.name}>
-                        <Link
-                          to={item.href}
-                          className={`group flex gap-x-3 rounded-lg p-3 text-sm font-semibold transition-colors ${
-                            active
-                              ? 'bg-primary-50 text-primary-600'
-                              : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50'
-                          }`}
-                        >
-                          <item.icon className="h-5 w-5 shrink-0" />
-                          {item.name}
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </li>
-
-              {/* User section */}
-              <li className="mt-auto">
-                <div className="flex items-center gap-x-4 px-3 py-3 text-sm font-semibold text-gray-900 border-t border-gray-200 pt-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-600 text-white font-medium">
-                    {user && getInitials(user.name)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
-                    <p className="text-xs text-gray-500 truncate">{user?.email}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="group flex w-full gap-x-3 rounded-lg p-3 text-sm font-semibold text-gray-700 hover:text-red-600 hover:bg-red-50 transition-colors mt-2"
+          <nav className="flex-1 px-3 space-y-1">
+            {navigation.map((item) => {
+              const active = isActive(item.href);
+              return (
+                <Link
+                  key={item.name}
+                  to={item.href}
+                  className={`relative flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all
+                    ${
+                      active
+                        ? 'bg-primary-50 text-primary-600'
+                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                    }`}
                 >
-                  <LogOut className="h-5 w-5 shrink-0" />
-                  Logout
-                </button>
-              </li>
-            </ul>
+                  {active && (
+                    <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r bg-primary-600" />
+                  )}
+                  <item.icon className="h-5 w-5" />
+                  {item.name}
+                </Link>
+              );
+            })}
           </nav>
+
+          {/* User Card */}
+          <div className="p-4 border-t border-gray-200">
+            <div className="flex items-center gap-3 rounded-xl bg-gray-50 p-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-600 text-white font-semibold">
+                {user && getInitials(user.name)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-900 truncate">
+                  {user?.name}
+                </p>
+                <p className="text-xs text-gray-500 truncate">
+                  {user?.email}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleLogout}
+              className="mt-3 flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 transition"
+            >
+              <LogOut className="h-5 w-5" />
+              Logout
+            </button>
+          </div>
         </div>
       </aside>
 
-      {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-gray-200">
+      {/* ===== Mobile Header ===== */}
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur border-b border-gray-200">
         <div className="flex items-center justify-between px-4 py-3">
           <Link to="/dashboard" className="flex items-center gap-2">
-            <div className="flex items-center justify-center w-10 h-10 bg-primary-600 rounded-lg">
-              <Code2 className="w-6 h-6 text-white" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-600 text-white">
+              <Code2 className="w-5 h-5" />
             </div>
-            <span className="text-xl font-bold text-gray-900">DevPlanner</span>
+            <span className="font-bold text-gray-900">DevPlanner</span>
           </Link>
+
           <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 text-gray-600"
+            onClick={() => setMobileMenuOpen(true)}
+            className="p-2 rounded-lg hover:bg-gray-100"
           >
-            {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            <Menu className="h-6 w-6 text-gray-700" />
           </button>
         </div>
+      </header>
 
-        {/* Mobile Menu */}
-        {mobileMenuOpen && (
-          <div className="px-4 py-4 border-t border-gray-200">
-            <nav className="space-y-1">
+      {/* ===== Mobile Drawer ===== */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden fixed inset-0 z-50">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <div className="absolute left-0 top-0 h-full w-72 bg-white shadow-xl p-5">
+            <div className="flex items-center justify-between mb-6">
+              <span className="text-lg font-bold">Menu</span>
+              <button onClick={() => setMobileMenuOpen(false)}>
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            <nav className="space-y-2">
               {navigation.map((item) => {
                 const active = isActive(item.href);
                 return (
@@ -115,11 +138,12 @@ export default function DashboardLayout() {
                     key={item.name}
                     to={item.href}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center gap-x-3 rounded-lg p-3 text-sm font-semibold ${
-                      active
-                        ? 'bg-primary-50 text-primary-600'
-                        : 'text-gray-700 hover:bg-gray-50'
-                    }`}
+                    className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium
+                      ${
+                        active
+                          ? 'bg-primary-50 text-primary-600'
+                          : 'text-gray-700 hover:bg-gray-100'
+                      }`}
                   >
                     <item.icon className="h-5 w-5" />
                     {item.name}
@@ -127,25 +151,21 @@ export default function DashboardLayout() {
                 );
               })}
             </nav>
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <button
-                onClick={() => {
-                  handleLogout();
-                  setMobileMenuOpen(false);
-                }}
-                className="flex items-center gap-x-3 rounded-lg p-3 text-sm font-semibold text-red-600 hover:bg-red-50 w-full"
-              >
-                <LogOut className="h-5 w-5" />
-                Logout
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
 
-      {/* Main content */}
-      <main className="lg:pl-64 pt-16 lg:pt-0">
-        <div className="px-4 py-8 sm:px-6 lg:px-8">
+            <button
+              onClick={handleLogout}
+              className="mt-6 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50"
+            >
+              <LogOut className="h-5 w-5" />
+              Logout
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Main Content ===== */}
+      <main className="lg:pl-64 pt-16 lg:pt-6">
+        <div className="px-4 sm:px-6 lg:px-8 py-6">
           <Outlet />
         </div>
       </main>
