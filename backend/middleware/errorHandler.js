@@ -1,4 +1,8 @@
 const errorHandler = (err, req, res, next) => {
+     if (res.headersSent) {
+        return next(err);
+    }
+    
     let error = { ...err };
     error.message = err.message;
 
@@ -37,7 +41,7 @@ const errorHandler = (err, req, res, next) => {
         error = { message, statusCode: 401 };
     }
 
-    res.status(error.statusCode || 500).json({
+    return res.status(error.statusCode || 500).json({
         success: false,
         message: error.message || 'Server Error',
         ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
