@@ -38,7 +38,7 @@ exports.getFeatures = async (req, res, next) => {
         const features = await Feature.find(filters)
             .sort({ order: 1, createdAt: 1 });
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             count: features.length,
             data: features
@@ -71,7 +71,7 @@ exports.getFeature = async (req, res, next) => {
             });
         }
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             data: feature
         });
@@ -105,7 +105,7 @@ exports.createFeature = async (req, res, next) => {
 
         const feature = await Feature.create(req.body);
 
-        res.status(201).json({
+        return res.status(201).json({
             success: true,
             message: 'Feature created successfully',
             data: feature
@@ -147,7 +147,7 @@ exports.updateFeature = async (req, res, next) => {
             }
         );
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: 'Feature updated successfully',
             data: feature
@@ -185,7 +185,7 @@ exports.deleteFeature = async (req, res, next) => {
 
         await Feature.findByIdAndDelete(req.params.id);
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: 'Feature deleted successfully',
             data: {}
@@ -230,7 +230,7 @@ exports.reorderFeatures = async (req, res, next) => {
 
         await Promise.all(updatePromises);
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: 'Features reordered successfully'
         });

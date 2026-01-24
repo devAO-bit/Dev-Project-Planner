@@ -28,7 +28,7 @@ exports.getProjects = async (req, res, next) => {
 
         const projects = await query.sort({ updatedAt: -1 });
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             count: projects.length,
             data: projects
@@ -60,7 +60,7 @@ exports.getProject = async (req, res, next) => {
             });
         }
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             data: project
         });
@@ -79,7 +79,7 @@ exports.createProject = async (req, res, next) => {
 
         const project = await Project.create(req.body);
 
-        res.status(201).json({
+        return res.status(201).json({
             success: true,
             message: 'Project created successfully',
             data: project
@@ -120,7 +120,7 @@ exports.updateProject = async (req, res, next) => {
             }
         );
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: 'Project updated successfully',
             data: project
@@ -158,7 +158,7 @@ exports.deleteProject = async (req, res, next) => {
 
         await Project.findByIdAndDelete(req.params.id);
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: 'Project deleted successfully',
             data: {}
@@ -235,7 +235,7 @@ exports.getProjectStats = async (req, res, next) => {
             }
         };
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             data: stats
         });

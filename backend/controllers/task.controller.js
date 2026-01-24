@@ -40,7 +40,7 @@ exports.getTasks = async (req, res, next) => {
             .populate('featureId', 'name type')
             .sort({ order: 1, createdAt: 1 });
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             count: tasks.length,
             data: tasks
@@ -78,7 +78,7 @@ exports.getTasksByFeature = async (req, res, next) => {
         const tasks = await Task.find({ featureId })
             .sort({ order: 1, createdAt: 1 });
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             count: tasks.length,
             data: tasks
@@ -112,7 +112,7 @@ exports.getTask = async (req, res, next) => {
             });
         }
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             data: task
         });
@@ -159,7 +159,7 @@ exports.createTask = async (req, res, next) => {
         // Populate before sending response
         await task.populate('featureId', 'name type');
 
-        res.status(201).json({
+        return res.status(201).json({
             success: true,
             message: 'Task created successfully',
             data: task
@@ -215,7 +215,7 @@ exports.updateTask = async (req, res, next) => {
             }
         ).populate('featureId', 'name type');
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: 'Task updated successfully',
             data: task
@@ -250,7 +250,7 @@ exports.deleteTask = async (req, res, next) => {
 
         await Task.findByIdAndDelete(req.params.id);
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: 'Task deleted successfully',
             data: {}
@@ -295,7 +295,7 @@ exports.reorderTasks = async (req, res, next) => {
 
         await Promise.all(updatePromises);
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: 'Tasks reordered successfully'
         });
