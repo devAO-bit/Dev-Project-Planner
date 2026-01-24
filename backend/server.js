@@ -1,97 +1,118 @@
+// server.js
 require('dotenv').config();
-const express = require('express');
+
 const mongoose = require('mongoose');
-const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
-const rateLimit = require('express-rate-limit');
+const app = require('./app');
+const logger = require('./config/logger');
+const validateEnv = require('./config/env.validator');
 
-// Import routes
-const authRoutes = require('./routes/auth.routes');
-const projectRoutes = require('./routes/project.routes');
-const featureRoutes = require('./routes/feature.routes');
-const taskRoutes = require('./routes/task.routes');
+/**
+ * Validate environment variables
+ */
+validateEnv();
 
-// Import error handler
-const errorHandler = require('./middleware/errorHandler');
-
-const app = express();
-
-// Security Middleware
-app.use(helmet());
-app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-    credentials: true
-}));
-
-
-// Rate limiting
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
-    message: 'Too many requests from this IP, please try again later.'
-});
-app.use('/api/', limiter);
-
-// Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Logging
-if (process.env.NODE_ENV === 'development') {
-    app.use(morgan('dev'));
-} else {
-    app.use(morgan('combined'));
-}
-
-// Database connection
+/**
+ * MongoDB connection with retry logic
+ */
 const connectDB = async () => {
-    try {
-        await mongoose.connect(process.env.MONGODB_URI);
-        console.log('✅ MongoDB connected successfully');
-    } catch (error) {
-        console.error('❌ MongoDB connection error:', error.message);
-        process.exit(1);
+    const maxRetries = 5;
+    let retries = 0;
+
+    while (retries < maxRetries) {
+        try {
+            await mongoose.connect(process.env.MONGODB_URI, {
+                autoIndex: process.env.NODE_ENV !== 'production',
+            });
+
+            logger.info('✅ MongoDB connected successfully');
+            return;
+        } catch (error) {
+            retries++;
+            logger.error(
+                `❌ MongoDB connection error (attempt ${retries}/${maxRetries})`,
+                error
+            );
+
+            if (retries === maxRetries) {
+                logger.error('❌ Failed to connect to MongoDB');
+                process.exit(1);
+            }
+
+            await new Promise((resolve) =>
+                setTimeout(resolve, Math.min(1000 * 2 ** retries, 10000))
+            );
+        }
     }
 };
 
 connectDB();
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-    res.status(200).json({
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime()
-    });
+/**
+ * MongoDB connection events
+ */
+mongoose.connection.on('disconnected', () => {
+    logger.warn('⚠️ MongoDB disconnected');
 });
 
-// API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/projects', projectRoutes);
-app.use('/api/features', featureRoutes);
-app.use('/api/tasks', taskRoutes);
-
-// 404 handler
-app.use((req, res) => {
-    res.status(404).json({
-        success: false,
-        message: 'Route not found'
-    });
+mongoose.connection.on('reconnected', () => {
+    logger.info('✅ MongoDB reconnected');
 });
 
-// Global error handler
-app.use(errorHandler);
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-    console.log('SIGTERM signal received: closing HTTP server');
-    mongoose.connection.close();
-    process.exit(0);
-});
-
+/**
+ * Start HTTP server
+ */
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
+const server = app.listen(PORT, () => {
+    logger.info(
+        `🚀 Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`
+    );
+});
+
+/**
+ * Graceful shutdown (idempotent)
+ */
+let isShuttingDown = false;
+
+const gracefulShutdown = async (signal) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+
+    logger.info(`${signal} received. Shutting down gracefully...`);
+
+    // Force shutdown after 10s
+    const shutdownTimeout = setTimeout(() => {
+        logger.error('⏱ Force shutdown after timeout');
+        process.exit(1);
+    }, 10000);
+
+    try {
+        await new Promise((resolve) => server.close(resolve));
+        logger.info('HTTP server closed');
+
+        await mongoose.connection.close();
+        logger.info('MongoDB connection closed');
+
+        clearTimeout(shutdownTimeout);
+        process.exit(0);
+    } catch (error) {
+        logger.error('Error during shutdown', error);
+        process.exit(1);
+    }
+};
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+/**
+ * Fatal error handlers
+ */
+process.on('uncaughtException', (error) => {
+    logger.error('Uncaught Exception', error);
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+    logger.error('Unhandled Rejection', reason);
+    process.exit(1);
 });
