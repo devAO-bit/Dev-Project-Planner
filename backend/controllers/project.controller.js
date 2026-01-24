@@ -1,8 +1,7 @@
 const Project = require('../models/Project');
 const Feature = require('../models/Feature');
 const Task = require('../models/Task');
-
-
+const logger = require('../config/logger');
 
 // @desc    Get all projects for logged in user
 // @route   GET /api/projects
@@ -28,12 +27,19 @@ exports.getProjects = async (req, res, next) => {
 
         const projects = await query.sort({ updatedAt: -1 });
 
+        logger.info(`[${req.id}] Retrieved projects`, {
+            userId: req.user.id,
+            count: projects.length,
+            filters: { status, category, search }
+        });
+
         return res.status(200).json({
             success: true,
             count: projects.length,
             data: projects
         });
     } catch (error) {
+        logger.error(`[${req.id}] Error fetching projects`, error);
         next(error);
     }
 };
@@ -46,25 +52,40 @@ exports.getProject = async (req, res, next) => {
         const project = await Project.findById(req.params.id);
 
         if (!project) {
+            logger.warn(`[${req.id}] Project not found`, {
+                projectId: req.params.id
+            });
+
             return res.status(404).json({
                 success: false,
                 message: 'Project not found'
             });
         }
 
-        // Make sure user owns the project
+        // Authorization check
         if (project.userId.toString() !== req.user.id) {
+            logger.warn(`[${req.id}] Unauthorized project access attempt`, {
+                projectId: project._id,
+                userId: req.user.id
+            });
+
             return res.status(403).json({
                 success: false,
                 message: 'Not authorized to access this project'
             });
         }
 
+        logger.info(`[${req.id}] Retrieved project`, {
+            projectId: project._id,
+            userId: req.user.id
+        });
+
         return res.status(200).json({
             success: true,
             data: project
         });
     } catch (error) {
+        logger.error(`[${req.id}] Error fetching project`, error);
         next(error);
     }
 };
@@ -74,10 +95,14 @@ exports.getProject = async (req, res, next) => {
 // @access  Private
 exports.createProject = async (req, res, next) => {
     try {
-        // Add user to req.body
         req.body.userId = req.user.id;
 
         const project = await Project.create(req.body);
+
+        logger.info(`[${req.id}] Project created`, {
+            projectId: project._id,
+            userId: req.user.id
+        });
 
         return res.status(201).json({
             success: true,
@@ -85,6 +110,7 @@ exports.createProject = async (req, res, next) => {
             data: project
         });
     } catch (error) {
+        logger.error(`[${req.id}] Error creating project`, error);
         next(error);
     }
 };
@@ -97,14 +123,23 @@ exports.updateProject = async (req, res, next) => {
         let project = await Project.findById(req.params.id);
 
         if (!project) {
+            logger.warn(`[${req.id}] Project not found for update`, {
+                projectId: req.params.id
+            });
+
             return res.status(404).json({
                 success: false,
                 message: 'Project not found'
             });
         }
 
-        // Make sure user owns the project
+        // Authorization check
         if (project.userId.toString() !== req.user.id) {
+            logger.warn(`[${req.id}] Unauthorized project update attempt`, {
+                projectId: project._id,
+                userId: req.user.id
+            });
+
             return res.status(403).json({
                 success: false,
                 message: 'Not authorized to update this project'
@@ -120,12 +155,19 @@ exports.updateProject = async (req, res, next) => {
             }
         );
 
+        logger.info(`[${req.id}] Project updated`, {
+            projectId: project._id,
+            userId: req.user.id,
+            updatedFields: Object.keys(req.body)
+        });
+
         return res.status(200).json({
             success: true,
             message: 'Project updated successfully',
             data: project
         });
     } catch (error) {
+        logger.error(`[${req.id}] Error updating project`, error);
         next(error);
     }
 };
@@ -138,25 +180,43 @@ exports.deleteProject = async (req, res, next) => {
         const project = await Project.findById(req.params.id);
 
         if (!project) {
+            logger.warn(`[${req.id}] Project not found for deletion`, {
+                projectId: req.params.id
+            });
+
             return res.status(404).json({
                 success: false,
                 message: 'Project not found'
             });
         }
 
-        // Make sure user owns the project
+        // Authorization check
         if (project.userId.toString() !== req.user.id) {
+            logger.warn(`[${req.id}] Unauthorized project deletion attempt`, {
+                projectId: project._id,
+                userId: req.user.id
+            });
+
             return res.status(403).json({
                 success: false,
                 message: 'Not authorized to delete this project'
             });
         }
 
-        // Delete all features and tasks associated with this project
-        await Feature.deleteMany({ projectId: req.params.id });
-        await Task.deleteMany({ projectId: req.params.id });
+        // Cascade deletes
+        const [featuresResult, tasksResult] = await Promise.all([
+            Feature.deleteMany({ projectId: project._id }),
+            Task.deleteMany({ projectId: project._id })
+        ]);
 
-        await Project.findByIdAndDelete(req.params.id);
+        await Project.findByIdAndDelete(project._id);
+
+        logger.info(`[${req.id}] Project deleted`, {
+            projectId: project._id,
+            userId: req.user.id,
+            deletedFeatures: featuresResult.deletedCount,
+            deletedTasks: tasksResult.deletedCount
+        });
 
         return res.status(200).json({
             success: true,
@@ -164,6 +224,7 @@ exports.deleteProject = async (req, res, next) => {
             data: {}
         });
     } catch (error) {
+        logger.error(`[${req.id}] Error deleting project`, error);
         next(error);
     }
 };
@@ -176,23 +237,33 @@ exports.getProjectStats = async (req, res, next) => {
         const project = await Project.findById(req.params.id);
 
         if (!project) {
+            logger.warn(`[${req.id}] Project not found for stats`, {
+                projectId: req.params.id
+            });
+
             return res.status(404).json({
                 success: false,
                 message: 'Project not found'
             });
         }
 
-        // Make sure user owns the project
+        // Authorization check
         if (project.userId.toString() !== req.user.id) {
+            logger.warn(`[${req.id}] Unauthorized project stats access`, {
+                projectId: project._id,
+                userId: req.user.id
+            });
+
             return res.status(403).json({
                 success: false,
                 message: 'Not authorized to access this project'
             });
         }
 
-        // Get detailed stats
-        const features = await Feature.find({ projectId: req.params.id });
-        const tasks = await Task.find({ projectId: req.params.id });
+        const [features, tasks] = await Promise.all([
+            Feature.find({ projectId: project._id }),
+            Task.find({ projectId: project._id })
+        ]);
 
         const stats = {
             project: {
@@ -201,7 +272,9 @@ exports.getProjectStats = async (req, res, next) => {
                 progress: project.progress,
                 startDate: project.startDate,
                 endDate: project.endDate,
-                daysRemaining: Math.ceil((project.endDate - Date.now()) / (1000 * 60 * 60 * 24))
+                daysRemaining: project.endDate
+                    ? Math.ceil((project.endDate - Date.now()) / (1000 * 60 * 60 * 24))
+                    : null
             },
             features: {
                 total: features.length,
@@ -235,11 +308,19 @@ exports.getProjectStats = async (req, res, next) => {
             }
         };
 
+        logger.info(`[${req.id}] Project statistics retrieved`, {
+            projectId: project._id,
+            userId: req.user.id,
+            featureCount: features.length,
+            taskCount: tasks.length
+        });
+
         return res.status(200).json({
             success: true,
             data: stats
         });
     } catch (error) {
+        logger.error(`[${req.id}] Error fetching project stats`, error);
         next(error);
     }
 };

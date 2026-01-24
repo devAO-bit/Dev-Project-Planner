@@ -1,6 +1,7 @@
 const Task = require('../models/Task');
 const Project = require('../models/Project');
 const Feature = require('../models/Feature');
+const logger = require('../config/logger');
 
 // Helper function to verify project ownership
 const verifyProjectOwnership = async (projectId, userId) => {
@@ -14,6 +15,7 @@ const verifyProjectOwnership = async (projectId, userId) => {
     return { project };
 };
 
+
 // @desc    Get all tasks for a project
 // @route   GET /api/tasks/project/:projectId
 // @access  Private
@@ -25,6 +27,11 @@ exports.getTasks = async (req, res, next) => {
         // Verify project ownership
         const verification = await verifyProjectOwnership(projectId, req.user.id);
         if (verification.error) {
+            logger.warn(`[${req.id}] Unauthorized task list access`, {
+                projectId,
+                userId: req.user.id
+            });
+
             return res.status(verification.status).json({
                 success: false,
                 message: verification.error
@@ -40,12 +47,19 @@ exports.getTasks = async (req, res, next) => {
             .populate('featureId', 'name type')
             .sort({ order: 1, createdAt: 1 });
 
+        logger.info(`[${req.id}] Tasks fetched for project`, {
+            projectId,
+            count: tasks.length,
+            userId: req.user.id
+        });
+
         return res.status(200).json({
             success: true,
             count: tasks.length,
             data: tasks
         });
     } catch (error) {
+        logger.error(`[${req.id}] Error fetching tasks for project`, error);
         next(error);
     }
 };
@@ -61,6 +75,10 @@ exports.getTasksByFeature = async (req, res, next) => {
             .populate('projectId', 'userId');
 
         if (!feature) {
+            logger.warn(`[${req.id}] Feature not found while fetching tasks`, {
+                featureId
+            });
+
             return res.status(404).json({
                 success: false,
                 message: 'Feature not found'
@@ -69,6 +87,12 @@ exports.getTasksByFeature = async (req, res, next) => {
 
         // Verify project ownership
         if (feature.projectId.userId.toString() !== req.user.id) {
+            logger.warn(`[${req.id}] Unauthorized access to feature tasks`, {
+                featureId,
+                projectId: feature.projectId._id,
+                userId: req.user.id
+            });
+
             return res.status(403).json({
                 success: false,
                 message: 'Not authorized to access these tasks'
@@ -78,12 +102,19 @@ exports.getTasksByFeature = async (req, res, next) => {
         const tasks = await Task.find({ featureId })
             .sort({ order: 1, createdAt: 1 });
 
+        logger.info(`[${req.id}] Tasks fetched for feature`, {
+            featureId,
+            count: tasks.length,
+            userId: req.user.id
+        });
+
         return res.status(200).json({
             success: true,
             count: tasks.length,
             data: tasks
         });
     } catch (error) {
+        logger.error(`[${req.id}] Error fetching tasks by feature`, error);
         next(error);
     }
 };
@@ -98,6 +129,10 @@ exports.getTask = async (req, res, next) => {
             .populate('featureId', 'name type');
 
         if (!task) {
+            logger.warn(`[${req.id}] Task not found`, {
+                taskId: req.params.id
+            });
+
             return res.status(404).json({
                 success: false,
                 message: 'Task not found'
@@ -106,20 +141,33 @@ exports.getTask = async (req, res, next) => {
 
         // Verify project ownership
         if (task.projectId.userId.toString() !== req.user.id) {
+            logger.warn(`[${req.id}] Unauthorized task access`, {
+                taskId: task._id,
+                projectId: task.projectId._id,
+                userId: req.user.id
+            });
+
             return res.status(403).json({
                 success: false,
                 message: 'Not authorized to access this task'
             });
         }
 
+        logger.info(`[${req.id}] Task fetched`, {
+            taskId: task._id,
+            userId: req.user.id
+        });
+
         return res.status(200).json({
             success: true,
             data: task
         });
     } catch (error) {
+        logger.error(`[${req.id}] Error fetching task`, error);
         next(error);
     }
 };
+
 
 // @desc    Create new task
 // @route   POST /api/tasks
@@ -131,16 +179,26 @@ exports.createTask = async (req, res, next) => {
         // Verify project ownership
         const verification = await verifyProjectOwnership(projectId, req.user.id);
         if (verification.error) {
+            logger.warn(`[${req.id}] Unauthorized task creation attempt`, {
+                projectId,
+                userId: req.user.id
+            });
+
             return res.status(verification.status).json({
                 success: false,
                 message: verification.error
             });
         }
 
-        // If featureId is provided, verify it belongs to the project
+        // Verify feature belongs to project
         if (featureId) {
             const feature = await Feature.findOne({ _id: featureId, projectId });
             if (!feature) {
+                logger.warn(`[${req.id}] Feature-project mismatch while creating task`, {
+                    featureId,
+                    projectId
+                });
+
                 return res.status(400).json({
                     success: false,
                     message: 'Feature does not belong to this project'
@@ -148,16 +206,18 @@ exports.createTask = async (req, res, next) => {
             }
         }
 
-        // Get the highest order number
-        const lastTask = await Task.findOne({ projectId })
-            .sort({ order: -1 });
-
+        const lastTask = await Task.findOne({ projectId }).sort({ order: -1 });
         req.body.order = lastTask ? lastTask.order + 1 : 0;
 
         const task = await Task.create(req.body);
-
-        // Populate before sending response
         await task.populate('featureId', 'name type');
+
+        logger.info(`[${req.id}] Task created`, {
+            taskId: task._id,
+            projectId,
+            featureId: featureId || null,
+            userId: req.user.id
+        });
 
         return res.status(201).json({
             success: true,
@@ -165,6 +225,7 @@ exports.createTask = async (req, res, next) => {
             data: task
         });
     } catch (error) {
+        logger.error(`[${req.id}] Error creating task`, error);
         next(error);
     }
 };
@@ -178,27 +239,41 @@ exports.updateTask = async (req, res, next) => {
             .populate('projectId', 'userId');
 
         if (!task) {
+            logger.warn(`[${req.id}] Task not found for update`, {
+                taskId: req.params.id
+            });
+
             return res.status(404).json({
                 success: false,
                 message: 'Task not found'
             });
         }
 
-        // Verify project ownership
         if (task.projectId.userId.toString() !== req.user.id) {
+            logger.warn(`[${req.id}] Unauthorized task update attempt`, {
+                taskId: task._id,
+                userId: req.user.id
+            });
+
             return res.status(403).json({
                 success: false,
                 message: 'Not authorized to update this task'
             });
         }
 
-        // If updating featureId, verify it belongs to the same project
+        // Verify updated feature belongs to same project
         if (req.body.featureId) {
             const feature = await Feature.findOne({
                 _id: req.body.featureId,
                 projectId: task.projectId._id
             });
+
             if (!feature) {
+                logger.warn(`[${req.id}] Invalid feature assignment during task update`, {
+                    taskId: task._id,
+                    featureId: req.body.featureId
+                });
+
                 return res.status(400).json({
                     success: false,
                     message: 'Feature does not belong to this project'
@@ -209,11 +284,13 @@ exports.updateTask = async (req, res, next) => {
         task = await Task.findByIdAndUpdate(
             req.params.id,
             req.body,
-            {
-                new: true,
-                runValidators: true
-            }
+            { new: true, runValidators: true }
         ).populate('featureId', 'name type');
+
+        logger.info(`[${req.id}] Task updated`, {
+            taskId: task._id,
+            userId: req.user.id
+        });
 
         return res.status(200).json({
             success: true,
@@ -221,6 +298,7 @@ exports.updateTask = async (req, res, next) => {
             data: task
         });
     } catch (error) {
+        logger.error(`[${req.id}] Error updating task`, error);
         next(error);
     }
 };
@@ -234,14 +312,22 @@ exports.deleteTask = async (req, res, next) => {
             .populate('projectId', 'userId');
 
         if (!task) {
+            logger.warn(`[${req.id}] Task not found for deletion`, {
+                taskId: req.params.id
+            });
+
             return res.status(404).json({
                 success: false,
                 message: 'Task not found'
             });
         }
 
-        // Verify project ownership
         if (task.projectId.userId.toString() !== req.user.id) {
+            logger.warn(`[${req.id}] Unauthorized task deletion attempt`, {
+                taskId: task._id,
+                userId: req.user.id
+            });
+
             return res.status(403).json({
                 success: false,
                 message: 'Not authorized to delete this task'
@@ -250,12 +336,18 @@ exports.deleteTask = async (req, res, next) => {
 
         await Task.findByIdAndDelete(req.params.id);
 
+        logger.info(`[${req.id}] Task deleted`, {
+            taskId: task._id,
+            userId: req.user.id
+        });
+
         return res.status(200).json({
             success: true,
             message: 'Task deleted successfully',
             data: {}
         });
     } catch (error) {
+        logger.error(`[${req.id}] Error deleting task`, error);
         next(error);
     }
 };
@@ -265,22 +357,28 @@ exports.deleteTask = async (req, res, next) => {
 // @access  Private
 exports.reorderTasks = async (req, res, next) => {
     try {
-        const { tasks } = req.body; // Array of { id, order }
+        const { tasks } = req.body;
 
         if (!Array.isArray(tasks) || tasks.length === 0) {
+            logger.warn(`[${req.id}] Invalid reorder tasks payload`);
+
             return res.status(400).json({
                 success: false,
                 message: 'Please provide tasks array'
             });
         }
 
-        // Verify all tasks belong to user's project
         const taskIds = tasks.map(t => t.id);
         const existingTasks = await Task.find({ _id: { $in: taskIds } })
             .populate('projectId', 'userId');
 
         for (const task of existingTasks) {
             if (task.projectId.userId.toString() !== req.user.id) {
+                logger.warn(`[${req.id}] Unauthorized task reorder attempt`, {
+                    taskId: task._id,
+                    userId: req.user.id
+                });
+
                 return res.status(403).json({
                     success: false,
                     message: 'Not authorized to reorder these tasks'
@@ -288,18 +386,24 @@ exports.reorderTasks = async (req, res, next) => {
             }
         }
 
-        // Update order for each task
-        const updatePromises = tasks.map(({ id, order }) =>
-            Task.findByIdAndUpdate(id, { order }, { new: true })
+        await Promise.all(
+            tasks.map(({ id, order }) =>
+                Task.findByIdAndUpdate(id, { order })
+            )
         );
 
-        await Promise.all(updatePromises);
+        logger.info(`[${req.id}] Tasks reordered`, {
+            count: tasks.length,
+            userId: req.user.id
+        });
 
         return res.status(200).json({
             success: true,
             message: 'Tasks reordered successfully'
         });
     } catch (error) {
+        logger.error(`[${req.id}] Error reordering tasks`, error);
         next(error);
     }
 };
+

@@ -1,6 +1,7 @@
 const Feature = require('../models/Feature');
 const Project = require('../models/Project');
 const Task = require('../models/Task');
+const logger = require("../config/logger");
 
 // Helper function to verify project ownership
 const verifyProjectOwnership = async (projectId, userId) => {
@@ -25,6 +26,11 @@ exports.getFeatures = async (req, res, next) => {
         // Verify project ownership
         const verification = await verifyProjectOwnership(projectId, req.user.id);
         if (verification.error) {
+            logger.warn(`[${req.id}] Unauthorized feature list access`, {
+                projectId,
+                userId: req.user.id
+            });
+
             return res.status(verification.status).json({
                 success: false,
                 message: verification.error
@@ -38,12 +44,20 @@ exports.getFeatures = async (req, res, next) => {
         const features = await Feature.find(filters)
             .sort({ order: 1, createdAt: 1 });
 
+        logger.info(`[${req.id}] Features retrieved`, {
+            projectId,
+            userId: req.user.id,
+            count: features.length,
+            filters: { type, status }
+        });
+
         return res.status(200).json({
             success: true,
             count: features.length,
             data: features
         });
     } catch (error) {
+        logger.error(`[${req.id}] Error fetching features`, error);
         next(error);
     }
 };
@@ -57,6 +71,10 @@ exports.getFeature = async (req, res, next) => {
             .populate('projectId', 'name userId');
 
         if (!feature) {
+            logger.warn(`[${req.id}] Feature not found`, {
+                featureId: req.params.id
+            });
+
             return res.status(404).json({
                 success: false,
                 message: 'Feature not found'
@@ -65,21 +83,33 @@ exports.getFeature = async (req, res, next) => {
 
         // Verify project ownership
         if (feature.projectId.userId.toString() !== req.user.id) {
+            logger.warn(`[${req.id}] Unauthorized feature access`, {
+                featureId: feature._id,
+                projectId: feature.projectId._id,
+                userId: req.user.id
+            });
+
             return res.status(403).json({
                 success: false,
                 message: 'Not authorized to access this feature'
             });
         }
 
+        logger.info(`[${req.id}] Feature retrieved`, {
+            featureId: feature._id,
+            projectId: feature.projectId._id,
+            userId: req.user.id
+        });
+
         return res.status(200).json({
             success: true,
             data: feature
         });
     } catch (error) {
+        logger.error(`[${req.id}] Error fetching feature`, error);
         next(error);
     }
 };
-
 
 // @desc    Create new feature
 // @route   POST /api/features
@@ -91,13 +121,18 @@ exports.createFeature = async (req, res, next) => {
         // Verify project ownership
         const verification = await verifyProjectOwnership(projectId, req.user.id);
         if (verification.error) {
+            logger.warn(`[${req.id}] Unauthorized feature creation attempt`, {
+                projectId,
+                userId: req.user.id
+            });
+
             return res.status(verification.status).json({
                 success: false,
                 message: verification.error
             });
         }
 
-        // Get the highest order number
+        // Determine order
         const lastFeature = await Feature.findOne({ projectId })
             .sort({ order: -1 });
 
@@ -105,12 +140,20 @@ exports.createFeature = async (req, res, next) => {
 
         const feature = await Feature.create(req.body);
 
+        logger.info(`[${req.id}] Feature created`, {
+            featureId: feature._id,
+            projectId,
+            userId: req.user.id,
+            order: feature.order
+        });
+
         return res.status(201).json({
             success: true,
             message: 'Feature created successfully',
             data: feature
         });
     } catch (error) {
+        logger.error(`[${req.id}] Error creating feature`, error);
         next(error);
     }
 };
@@ -124,6 +167,10 @@ exports.updateFeature = async (req, res, next) => {
             .populate('projectId', 'userId');
 
         if (!feature) {
+            logger.warn(`[${req.id}] Feature not found for update`, {
+                featureId: req.params.id
+            });
+
             return res.status(404).json({
                 success: false,
                 message: 'Feature not found'
@@ -132,6 +179,12 @@ exports.updateFeature = async (req, res, next) => {
 
         // Verify project ownership
         if (feature.projectId.userId.toString() !== req.user.id) {
+            logger.warn(`[${req.id}] Unauthorized feature update attempt`, {
+                featureId: feature._id,
+                projectId: feature.projectId._id,
+                userId: req.user.id
+            });
+
             return res.status(403).json({
                 success: false,
                 message: 'Not authorized to update this feature'
@@ -147,12 +200,19 @@ exports.updateFeature = async (req, res, next) => {
             }
         );
 
+        logger.info(`[${req.id}] Feature updated`, {
+            featureId: feature._id,
+            projectId: feature.projectId,
+            userId: req.user.id
+        });
+
         return res.status(200).json({
             success: true,
             message: 'Feature updated successfully',
             data: feature
         });
     } catch (error) {
+        logger.error(`[${req.id}] Error updating feature`, error);
         next(error);
     }
 };
@@ -166,6 +226,10 @@ exports.deleteFeature = async (req, res, next) => {
             .populate('projectId', 'userId');
 
         if (!feature) {
+            logger.warn(`[${req.id}] Feature not found for deletion`, {
+                featureId: req.params.id
+            });
+
             return res.status(404).json({
                 success: false,
                 message: 'Feature not found'
@@ -174,6 +238,12 @@ exports.deleteFeature = async (req, res, next) => {
 
         // Verify project ownership
         if (feature.projectId.userId.toString() !== req.user.id) {
+            logger.warn(`[${req.id}] Unauthorized feature deletion attempt`, {
+                featureId: feature._id,
+                projectId: feature.projectId._id,
+                userId: req.user.id
+            });
+
             return res.status(403).json({
                 success: false,
                 message: 'Not authorized to delete this feature'
@@ -182,8 +252,13 @@ exports.deleteFeature = async (req, res, next) => {
 
         // Delete all tasks associated with this feature
         await Task.deleteMany({ featureId: req.params.id });
-
         await Feature.findByIdAndDelete(req.params.id);
+
+        logger.info(`[${req.id}] Feature deleted`, {
+            featureId: feature._id,
+            projectId: feature.projectId._id,
+            userId: req.user.id
+        });
 
         return res.status(200).json({
             success: true,
@@ -191,6 +266,7 @@ exports.deleteFeature = async (req, res, next) => {
             data: {}
         });
     } catch (error) {
+        logger.error(`[${req.id}] Error deleting feature`, error);
         next(error);
     }
 };
@@ -200,22 +276,33 @@ exports.deleteFeature = async (req, res, next) => {
 // @access  Private
 exports.reorderFeatures = async (req, res, next) => {
     try {
-        const { features } = req.body; // Array of { id, order }
+        const { features } = req.body; // [{ id, order }]
 
         if (!Array.isArray(features) || features.length === 0) {
+            logger.warn(`[${req.id}] Invalid feature reorder payload`, {
+                userId: req.user.id
+            });
+
             return res.status(400).json({
                 success: false,
                 message: 'Please provide features array'
             });
         }
 
-        // Verify all features belong to user's project
         const featureIds = features.map(f => f.id);
-        const existingFeatures = await Feature.find({ _id: { $in: featureIds } })
-            .populate('projectId', 'userId');
+
+        const existingFeatures = await Feature.find({
+            _id: { $in: featureIds }
+        }).populate('projectId', 'userId');
 
         for (const feature of existingFeatures) {
             if (feature.projectId.userId.toString() !== req.user.id) {
+                logger.warn(`[${req.id}] Unauthorized feature reorder attempt`, {
+                    featureId: feature._id,
+                    projectId: feature.projectId._id,
+                    userId: req.user.id
+                });
+
                 return res.status(403).json({
                     success: false,
                     message: 'Not authorized to reorder these features'
@@ -223,18 +310,24 @@ exports.reorderFeatures = async (req, res, next) => {
             }
         }
 
-        // Update order for each feature
-        const updatePromises = features.map(({ id, order }) =>
-            Feature.findByIdAndUpdate(id, { order }, { new: true })
+        // Update order
+        await Promise.all(
+            features.map(({ id, order }) =>
+                Feature.findByIdAndUpdate(id, { order })
+            )
         );
 
-        await Promise.all(updatePromises);
+        logger.info(`[${req.id}] Features reordered`, {
+            userId: req.user.id,
+            featureCount: features.length
+        });
 
         return res.status(200).json({
             success: true,
             message: 'Features reordered successfully'
         });
     } catch (error) {
+        logger.error(`[${req.id}] Error reordering features`, error);
         next(error);
     }
 };
