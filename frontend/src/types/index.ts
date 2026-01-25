@@ -119,7 +119,7 @@ export type TaskStatus = "Todo" | "In Progress" | "Review" | "Done";
 export interface Task {
   _id: string;
   projectId: string;
-  featureId?: string;
+  featureId?: string | Feature;
   title: string;
   description?: string;
   status: TaskStatus;
