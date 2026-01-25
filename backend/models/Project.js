@@ -104,11 +104,23 @@ projectSchema.pre('save', function (next) {
 // Method to update progress
 projectSchema.methods.updateProgress = function () {
     if (this.stats.totalTasks > 0) {
-        this.progress = Math.round((this.stats.completedTasks / this.stats.totalTasks) * 100);
+        this.progress = Math.round(
+            (this.stats.completedTasks / this.stats.totalTasks) * 100
+        );
     } else {
         this.progress = 0;
     }
+
+    // ✅ AUTO-UPDATE STATUS
+    if (this.progress === 100 && this.stats.totalTasks > 0) {
+        this.status = 'Completed';
+    } else if (this.progress > 0) {
+        this.status = 'In Progress';
+    } else {
+        this.status = 'Planning';
+    }
 };
+
 
 // Static method to get user's projects with stats
 projectSchema.statics.getUserProjects = async function (userId, filters = {}) {
