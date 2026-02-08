@@ -2,7 +2,19 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Plus, Filter, ListTodo } from 'lucide-react';
+import {
+  ArrowLeft,
+  Plus,
+  Filter,
+  ListTodo,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  Target,
+  LayoutGrid,
+  Layers,
+  Rows
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { tasksApi, featuresApi, projectsApi } from '@/services/api';
 import type { Task, TaskStatus, Priority } from '@/types';
@@ -17,274 +29,209 @@ export default function TasksPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all');
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'all'>('all');
-  const [featureFilter, setFeatureFilter] = useState<string>('all');
-  const [groupByFeature, setGroupByFeature] = useState(false);
+  const [featureFilter, setFeatureFilter] = useState('all');
+  const [view, setView] = useState<'grid' | 'grouped'>('grid');
 
-  // Fetch project details
+  /* ---------------- Queries ---------------- */
+
   const { data: projectData } = useQuery({
     queryKey: ['project', projectId],
     queryFn: () => projectsApi.getById(projectId!),
     enabled: !!projectId,
   });
 
-  const project = projectData?.data.data;
-
-  // Fetch tasks
   const { data: tasksData, isLoading } = useQuery({
     queryKey: ['tasks', projectId, statusFilter, priorityFilter, featureFilter],
-    queryFn: () => tasksApi.getByProject(projectId!, {
-      status: statusFilter !== 'all' ? statusFilter : undefined,
-      priority: priorityFilter !== 'all' ? priorityFilter : undefined,
-      featureId: featureFilter !== 'all' ? featureFilter : undefined,
-    }),
+    queryFn: () =>
+      tasksApi.getByProject(projectId!, {
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        priority: priorityFilter !== 'all' ? priorityFilter : undefined,
+        featureId: featureFilter !== 'all' ? featureFilter : undefined,
+      }),
     enabled: !!projectId,
   });
 
-  const tasks = tasksData?.data.data || [];
-
-  // Fetch features for filter dropdown
   const { data: featuresData } = useQuery({
     queryKey: ['features', projectId],
     queryFn: () => featuresApi.getByProject(projectId!),
     enabled: !!projectId,
   });
 
-  const features = featuresData?.data.data || [];
+  const tasks = tasksData?.data.data ?? [];
+  const features = featuresData?.data.data ?? [];
+  const project = projectData?.data.data;
 
-  // Delete mutation
+  /* ---------------- Mutations ---------------- */
+
   const deleteMutation = useMutation({
     mutationFn: tasksApi.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
-      queryClient.invalidateQueries({ queryKey: ['features', projectId] });
-      queryClient.invalidateQueries({ queryKey: ['project', projectId] });
-      toast.success('Task deleted successfully');
+      toast.success('Task deleted');
     },
-    onError: (error: any) => {
-      toast.error(error.message || 'Failed to delete task');
-    },
+    onError: (err: any) => toast.error(err.message || 'Failed to delete task'),
   });
 
-  const handleEdit = (task: Task) => {
-    setSelectedTask(task);
-    setIsEditModalOpen(true);
-  };
+  /* ---------------- Derived ---------------- */
 
-  const handleDelete = (task: Task) => {
-    deleteMutation.mutate(task._id);
-  };
-
-  // Calculate statistics
   const stats = {
     total: tasks.length,
-    todo: tasks.filter((t: Task) => t.status === 'Todo').length,
-    inProgress: tasks.filter((t: Task) => t.status === 'In Progress').length,
-    review: tasks.filter((t: Task) => t.status === 'Review').length,
-    done: tasks.filter((t: Task) => t.status === 'Done').length,
+    todo: tasks.filter(t => t.status === 'Todo').length,
+    inProgress: tasks.filter(t => t.status === 'In Progress').length,
+    review: tasks.filter(t => t.status === 'Review').length,
+    done: tasks.filter(t => t.status === 'Done').length,
   };
 
-  // Group tasks by feature if enabled
-  const groupedTasks = groupByFeature
-    ? tasks.reduce((acc: any, task: Task) => {
-        const key = task.featureId || 'no-feature';
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(task);
-        return acc;
-      }, {})
-    : { all: tasks };
+  const groupedTasks = tasks.reduce<Record<string, Task[]>>((acc, task) => {
+    const key = task.featureId || 'unassigned';
+    acc[key] = acc[key] || [];
+    acc[key].push(task);
+    return acc;
+  }, {});
+
+  /* ---------------- Handlers ---------------- */
+
+  const quickFilter = (status: TaskStatus) => {
+    setStatusFilter(status);
+    setPriorityFilter('all');
+    setFeatureFilter('all');
+  };
+
+  /* ---------------- Loading ---------------- */
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
       </div>
     );
   }
 
+  /* ---------------- UI ---------------- */
+
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="mb-8">
-        <Link
-          to={`/projects/${projectId}`}
-          className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Project
-        </Link>
-
-        <div className="flex items-start justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">{project?.name}</h1>
-            <p className="text-gray-600 mt-1">Manage and track individual tasks</p>
-          </div>
-          <button
-            onClick={() => setIsCreateModalOpen(true)}
-            className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-700 transition"
+      <div className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-4">
+          <Link
+            to={`/projects/${projectId}`}
+            className="text-gray-600 hover:text-gray-900 flex items-center gap-2"
           >
-            <Plus className="w-5 h-5" />
-            New Task
-          </button>
-        </div>
+            <ArrowLeft className="w-4 h-4" />
+            Back
+          </Link>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <p className="text-sm text-gray-600 mb-1">Total Tasks</p>
-            <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-          </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <p className="text-sm text-gray-600 mb-1">Todo</p>
-            <p className="text-2xl font-bold text-gray-600">{stats.todo}</p>
-          </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <p className="text-sm text-gray-600 mb-1">In Progress</p>
-            <p className="text-2xl font-bold text-yellow-600">{stats.inProgress}</p>
-          </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <p className="text-sm text-gray-600 mb-1">Review</p>
-            <p className="text-2xl font-bold text-purple-600">{stats.review}</p>
-          </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <p className="text-sm text-gray-600 mb-1">Done</p>
-            <p className="text-2xl font-bold text-green-600">{stats.done}</p>
+          <div className="ml-auto flex gap-2">
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="bg-blue-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-blue-700"
+            >
+              <Plus className="inline w-4 h-4 mr-1" />
+              New Task
+            </button>
           </div>
         </div>
+      </div>
 
-        {/* Filters */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 text-sm text-gray-700">
-            <Filter className="w-4 h-4" />
-            <span className="font-medium">Filters:</span>
-          </div>
+      <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        {/* Title */}
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">{project?.name}</h1>
+          <p className="text-gray-600 mt-1">Track and manage tasks efficiently</p>
+        </div>
 
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as TaskStatus | 'all')}
-            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-          >
-            <option value="all">All Statuses</option>
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <Stat label="Total" value={stats.total} icon={ListTodo} />
+          <Stat label="Todo" value={stats.todo} icon={AlertCircle} onClick={() => quickFilter('Todo')} />
+          <Stat label="In Progress" value={stats.inProgress} icon={Clock} onClick={() => quickFilter('In Progress')} />
+          <Stat label="Review" value={stats.review} icon={Target} onClick={() => quickFilter('Review')} />
+          <Stat label="Done" value={stats.done} icon={CheckCircle2} onClick={() => quickFilter('Done')} />
+        </div>
+
+        {/* Filters + View */}
+        <div className="bg-white rounded-xl border p-5 flex flex-wrap gap-4 items-end">
+          <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter}>
+            <option value="all">All</option>
             <option value="Todo">Todo</option>
             <option value="In Progress">In Progress</option>
             <option value="Review">Review</option>
             <option value="Done">Done</option>
-          </select>
+          </FilterSelect>
 
-          <select
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value as Priority | 'all')}
-            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-          >
-            <option value="all">All Priorities</option>
+          <FilterSelect label="Priority" value={priorityFilter} onChange={setPriorityFilter}>
+            <option value="all">All</option>
             <option value="Critical">Critical</option>
             <option value="High">High</option>
             <option value="Medium">Medium</option>
             <option value="Low">Low</option>
-          </select>
+          </FilterSelect>
 
-          <select
-            value={featureFilter}
-            onChange={(e) => setFeatureFilter(e.target.value)}
-            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-          >
-            <option value="all">All Features</option>
-            {features.map((feature: any) => (
-              <option key={feature._id} value={feature._id}>
-                {feature.name}
-              </option>
+          <FilterSelect label="Feature" value={featureFilter} onChange={setFeatureFilter}>
+            <option value="all">All</option>
+            {features.map(f => (
+              <option key={f._id} value={f._id}>{f.name}</option>
             ))}
-          </select>
+          </FilterSelect>
 
-          <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={groupByFeature}
-              onChange={(e) => setGroupByFeature(e.target.checked)}
-              className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-            />
-            <span>Group by Feature</span>
-          </label>
+          {/* View Toggle */}
+          <div className="ml-auto flex rounded-lg border overflow-hidden">
+            <ViewButton active={view === 'grid'} onClick={() => setView('grid')}>
+              <LayoutGrid className="w-4 h-4" />
+            </ViewButton>
+            <ViewButton active={view === 'grouped'} onClick={() => setView('grouped')}>
+              <Rows className="w-4 h-4" />
+            </ViewButton>
+          </div>
+        </div>
 
-          {(statusFilter !== 'all' || priorityFilter !== 'all' || featureFilter !== 'all') && (
-            <button
-              onClick={() => {
-                setStatusFilter('all');
-                setPriorityFilter('all');
-                setFeatureFilter('all');
-              }}
-              className="text-sm text-primary-600 hover:text-primary-700 font-medium"
-            >
-              Clear Filters
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Tasks Display */}
-      {tasks.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-          <ListTodo className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">No tasks yet</h3>
-          <p className="text-gray-600 mb-6">
-            Get started by creating tasks to track your project progress
-          </p>
-          <button
-            onClick={() => setIsCreateModalOpen(true)}
-            className="inline-flex items-center gap-2 bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition"
-          >
-            <Plus className="w-5 h-5" />
-            Add Your First Task
-          </button>
-        </div>
-      ) : groupByFeature ? (
-        // Grouped View
-        <div className="space-y-6">
-          {Object.entries(groupedTasks).map(([key, groupTasks]: [string, any]) => {
-            const feature = key === 'no-feature' 
-              ? null 
-              : features.find((f: any) => f._id === key);
-            
-            return (
-              <div key={key} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    {feature ? feature.name : 'Unassigned Tasks'}
-                  </h2>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {groupTasks.length} task{groupTasks.length !== 1 ? 's' : ''}
-                  </p>
-                </div>
-                <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {groupTasks.map((task: Task) => (
-                    <TaskCard
-                      key={task._id}
-                      task={task}
-                      onEdit={handleEdit}
-                      onDelete={handleDelete}
-                      projectId={projectId!}
-                    />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        // Grid View
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {tasks.map((task: Task) => (
-            <TaskCard
-              key={task._id}
-              task={task}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              projectId={projectId!}
-            />
-          ))}
-        </div>
-      )}
+        {/* Tasks */}
+        {tasks.length === 0 ? (
+          <EmptyState onCreate={() => setIsCreateModalOpen(true)} />
+        ) : view === 'grid' ? (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {tasks.map(task => (
+              <TaskCard
+                key={task._id}
+                task={task}
+                onEdit={setSelectedTask}
+                onDelete={() => deleteMutation.mutate(task._id)}
+                projectId={projectId!}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {Object.entries(groupedTasks).map(([key, list]) => {
+              const feature = features.find(f => f._id === key);
+              return (
+                <section key={key} className="bg-white rounded-xl border">
+                  <header className="px-6 py-4 border-b font-semibold flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-blue-600" />
+                    {feature?.name ?? 'Unassigned'}
+                    <span className="ml-auto text-sm text-gray-500">{list.length}</span>
+                  </header>
+                  <div className="p-6 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {list.map(task => (
+                      <TaskCard
+                        key={task._id}
+                        task={task}
+                        onEdit={setSelectedTask}
+                        onDelete={() => deleteMutation.mutate(task._id)}
+                        projectId={projectId!}
+                      />
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        )}
+      </main>
 
       {/* Modals */}
       <CreateTaskModal
@@ -294,14 +241,68 @@ export default function TasksPage() {
       />
 
       <EditTaskModal
-        isOpen={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false);
-          setSelectedTask(null);
-        }}
+        isOpen={!!selectedTask}
+        onClose={() => setSelectedTask(null)}
         task={selectedTask}
         projectId={projectId!}
       />
+    </div>
+  );
+}
+
+/* ---------------- Small Components ---------------- */
+
+function Stat({ label, value, icon: Icon, onClick }: any) {
+  return (
+    <button
+      onClick={onClick}
+      className="bg-white border rounded-xl p-4 text-left hover:shadow transition"
+    >
+      <Icon className="w-5 h-5 text-blue-600 mb-2" />
+      <div className="text-2xl font-bold">{value}</div>
+      <div className="text-sm text-gray-600">{label}</div>
+    </button>
+  );
+}
+
+function FilterSelect({ label, value, onChange, children }: any) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-500 mb-1">{label}</label>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="px-3 py-2 rounded-lg border bg-gray-50 focus:bg-white"
+      >
+        {children}
+      </select>
+    </div>
+  );
+}
+
+function ViewButton({ active, children, onClick }: any) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-2 ${active ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function EmptyState({ onCreate }: { onCreate: () => void }) {
+  return (
+    <div className="bg-white border rounded-xl p-12 text-center">
+      <ListTodo className="w-12 h-12 mx-auto text-blue-600 mb-4" />
+      <h3 className="text-xl font-semibold">No tasks found</h3>
+      <p className="text-gray-600 mt-2 mb-6">Try adjusting filters or create a new task</p>
+      <button
+        onClick={onCreate}
+        className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium"
+      >
+        Create Task
+      </button>
     </div>
   );
 }
