@@ -40,9 +40,8 @@ class ApiClient {
       (error: AxiosError<ApiError>) => {
         if (error.response) {
           // Handle 401 - Unauthorized
-          if (error.response.status === 401) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
+          if (error.response?.status === 401) {
+            localStorage.clear();;
             window.location.href = '/login';
           }
 
