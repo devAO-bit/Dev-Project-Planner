@@ -106,8 +106,8 @@ export default function ProjectDetailPage() {
     );
   }
 
-  const isCompleted = project.status === 'completed';
-  const isInProgress = project.status === 'in_progress';
+  const isCompleted = project.status === 'Completed';
+  const isInProgress = project.status === 'In Progress';
 
   return (
     <div className="min-h-screen bg-gray-50">

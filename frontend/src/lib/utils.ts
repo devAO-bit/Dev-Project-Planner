@@ -6,12 +6,29 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatDate(date: string | Date, formatStr = "MMM dd, yyyy") {
-  return format(new Date(date), formatStr);
+function parseDateInput(date?: string | Date): Date | null {
+  if (!date) return null;
+
+  const value = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(value.getTime())) {
+    return null;
+  }
+
+  return value;
 }
 
-export function formatRelativeDate(date: string | Date) {
-  return formatDistanceToNow(new Date(date), { addSuffix: true });
+export function formatDate(date?: string | Date, formatStr = "MMM dd, yyyy") {
+  const parsed = parseDateInput(date);
+  if (!parsed) return "";
+
+  return format(parsed, formatStr);
+}
+
+export function formatRelativeDate(date?: string | Date) {
+  const parsed = parseDateInput(date);
+  if (!parsed) return "";
+
+  return formatDistanceToNow(parsed, { addSuffix: true });
 }
 
 export function getInitials(name: string): string {
@@ -67,8 +84,10 @@ export function getFeatureTypeColor(type: string): string {
   return typeColors[type] || "bg-gray-100 text-gray-700";
 }
 
-export function calculateDaysRemaining(endDate: string): number {
-  const end = new Date(endDate);
+export function calculateDaysRemaining(endDate?: string | Date): number {
+  const end = parseDateInput(endDate);
+  if (!end) return 0;
+
   const now = new Date();
   const diff = end.getTime() - now.getTime();
   return Math.ceil(diff / (1000 * 60 * 60 * 24));

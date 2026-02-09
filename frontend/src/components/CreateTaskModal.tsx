@@ -181,7 +181,7 @@ export default function CreateTaskModal({
 
             <div>
               <label htmlFor="dueDate" className="block text-sm font-medium text-gray-700 mb-1">
-                Due Date (Optional)
+                Due Date *
               </label>
               <input
                 {...register('dueDate')}

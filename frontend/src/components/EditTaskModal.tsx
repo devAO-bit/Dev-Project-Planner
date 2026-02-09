@@ -55,7 +55,7 @@ export default function EditTaskModal({
 
   // Reset form when task changes
   useEffect(() => {
-    if (task && features.length > 0) {
+    if (task) {
       const featureId =
         typeof task.featureId === "string"
           ? task.featureId
@@ -72,7 +72,7 @@ export default function EditTaskModal({
           : "",
       });
     }
-  }, [task, features, reset]);
+  }, [task, reset]);
 
   const updateMutation = useMutation({
     mutationFn: (data: TaskFormData) => {

@@ -188,8 +188,11 @@ export default function DashboardPage() {
           ) : (
             <div className="divide-y">
               {recentProjects.map(project => {
-                const days = calculateDaysRemaining(project.endDate);
-                const overdue = days < 0;
+                const hasEndDate = Boolean(project.endDate);
+                const days = hasEndDate
+                  ? calculateDaysRemaining(project.endDate)
+                  : 0;
+                const overdue = hasEndDate && days < 0;
 
                 return (
                   <Link
@@ -220,7 +223,11 @@ export default function DashboardPage() {
                           overdue ? 'text-red-600' : 'text-gray-600'
                         }`}
                       >
-                        {overdue ? 'Overdue' : `${days} days left`}
+                        {!hasEndDate
+                          ? 'No due date'
+                          : overdue
+                          ? 'Overdue'
+                          : `${days} days left`}
                       </span>
 
                       <div className="flex items-center gap-2">
