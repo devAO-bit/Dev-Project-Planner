@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const logger = require('../config/logger');
 
 const taskSchema = new mongoose.Schema({
     projectId: {
@@ -89,7 +90,7 @@ async function updateRelatedStats(taskDoc) {
             project.stats.completedTasks = projectCompletedTasks;
             project.updateProgress();
             await project.save();
-            console.log(`✅ Updated project stats: ${projectCompletedTasks}/${projectTasks.length} tasks`);
+            logger.info(`✅ Updated project stats: ${projectCompletedTasks}/${projectTasks.length} tasks`);
         }
 
         // Update feature stats if task belongs to a feature
@@ -115,26 +116,26 @@ async function updateRelatedStats(taskDoc) {
                     } else if (featureCompletedTasks === featureTasks.length) {
                         // ALL tasks completed - auto-complete feature
                         feature.status = 'Completed';
-                        console.log(`🎉 Feature "${feature.name}" auto-completed (all tasks done)`);
+                        logger.info(`🎉 Feature "${feature.name}" auto-completed (all tasks done)`);
                     } else {
                         // Some tasks done but not all
                         if (feature.status === 'Planned' || feature.status === 'Completed') {
                             feature.status = 'In Progress';
-                            console.log(`🔄 Feature "${feature.name}" auto-changed to In Progress`);
+                            logger.info(`🔄 Feature "${feature.name}" auto-changed to In Progress`);
                         }
                     }
                 }
 
                 await feature.save();
-                console.log(`✅ Updated feature stats: ${featureCompletedTasks}/${featureTasks.length} tasks (${feature.status})`);
+                logger.info(`✅ Updated feature stats: ${featureCompletedTasks}/${featureTasks.length} tasks (${feature.status})`);
 
                 if (oldStatus !== feature.status) {
-                    console.log(`📊 Feature status changed: ${oldStatus} → ${feature.status}`);
+                    logger.info(`📊 Feature status changed: ${oldStatus} → ${feature.status}`);
                 }
             }
         }
     } catch (error) {
-        console.error('Error updating related stats:', error);
+        logger.error('Error updating related stats', { error });
     }
 }
 
@@ -201,11 +202,11 @@ taskSchema.post('findOneAndDelete', async function (doc) {
                     }
 
                     await feature.save();
-                    console.log(`✅ Updated feature after deletion: ${featureCompletedTasks}/${featureTasks.length} tasks (${feature.status})`);
+                    logger.info(`✅ Updated feature after deletion: ${featureCompletedTasks}/${featureTasks.length} tasks (${feature.status})`);
                 }
             }
         } catch (error) {
-            console.error('Error updating stats after deletion:', error);
+            logger.error('Error updating stats after deletion', { error });
         }
     }
 });
