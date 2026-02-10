@@ -268,6 +268,12 @@ but to **think clearly, build intentionally, and learn from every project**.
 
 ---
 
+## Versioning Notes
+- v1.0.0: Initial project & dashboard setup
+- v1.1.0: MVP completed (features & tasks fully implemented)
+
+---
+
 ## 🤝 Contributions & Feedback
 
 This project is evolving.
