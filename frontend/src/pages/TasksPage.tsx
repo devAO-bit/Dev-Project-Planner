@@ -5,7 +5,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   Plus,
-  Filter,
   ListTodo,
   CheckCircle2,
   Clock,
@@ -21,14 +20,17 @@ import type { Task, TaskStatus, Priority } from '@/types';
 import CreateTaskModal from '@/components/CreateTaskModal';
 import EditTaskModal from '@/components/EditTaskModal';
 import TaskCard from '@/components/TaskCard';
+import TaskViewModal from '@/components/TaskViewModel';
+
 
 export default function TasksPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const queryClient = useQueryClient();
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [viewTask, setViewTask] = useState<Task | null>(null);
+
 
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all');
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'all'>('all');
@@ -60,22 +62,18 @@ export default function TasksPage() {
     enabled: !!projectId,
   });
 
-  const tasks = tasksData?.data.data ?? [];
+  const rawTasks = tasksData?.data.data ?? [];
   const features = featuresData?.data.data ?? [];
   const project = projectData?.data.data;
 
-  /* ---------------- Mutations ---------------- */
-
-  const deleteMutation = useMutation({
-    mutationFn: tasksApi.delete,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
-      toast.success('Task deleted');
-    },
-    onError: (err: any) => toast.error(err.message || 'Failed to delete task'),
-  });
-
   /* ---------------- Derived ---------------- */
+
+  // move completed tasks to bottom
+  const tasks = [...rawTasks].sort((a, b) => {
+    if (a.status === 'Done' && b.status !== 'Done') return 1;
+    if (a.status !== 'Done' && b.status === 'Done') return -1;
+    return 0;
+  });
 
   const stats = {
     total: tasks.length,
@@ -92,12 +90,30 @@ export default function TasksPage() {
     return acc;
   }, {});
 
+  /* ---------------- Mutations ---------------- */
+
+  const deleteMutation = useMutation({
+    mutationFn: tasksApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+      toast.success('Task deleted');
+    },
+    onError: (err: any) => toast.error(err.message || 'Failed to delete task'),
+  });
+
   /* ---------------- Handlers ---------------- */
 
   const quickFilter = (status: TaskStatus) => {
     setStatusFilter(status);
     setPriorityFilter('all');
     setFeatureFilter('all');
+  };
+
+  const handleEdit = (task: Task) => {
+    if (task.status === 'Done') {
+      toast.warning('This task is already completed. Editing it may break progress history.');
+    }
+    setSelectedTask(task);
   };
 
   /* ---------------- Loading ---------------- */
@@ -114,7 +130,6 @@ export default function TasksPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-4">
           <Link
@@ -138,13 +153,11 @@ export default function TasksPage() {
       </div>
 
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
-        {/* Title */}
         <div>
           <h1 className="text-3xl font-bold text-gray-900">{project?.name}</h1>
           <p className="text-gray-600 mt-1">Track and manage tasks efficiently</p>
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Stat label="Total" value={stats.total} icon={ListTodo} />
           <Stat label="Todo" value={stats.todo} icon={AlertCircle} onClick={() => quickFilter('Todo')} />
@@ -153,7 +166,6 @@ export default function TasksPage() {
           <Stat label="Done" value={stats.done} icon={CheckCircle2} onClick={() => quickFilter('Done')} />
         </div>
 
-        {/* Filters + View */}
         <div className="bg-white rounded-xl border p-5 flex flex-wrap gap-4 items-end">
           <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter}>
             <option value="all">All</option>
@@ -178,7 +190,6 @@ export default function TasksPage() {
             ))}
           </FilterSelect>
 
-          {/* View Toggle */}
           <div className="ml-auto flex rounded-lg border overflow-hidden">
             <ViewButton active={view === 'grid'} onClick={() => setView('grid')}>
               <LayoutGrid className="w-4 h-4" />
@@ -189,19 +200,23 @@ export default function TasksPage() {
           </div>
         </div>
 
-        {/* Tasks */}
         {tasks.length === 0 ? (
           <EmptyState onCreate={() => setIsCreateModalOpen(true)} />
         ) : view === 'grid' ? (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {tasks.map(task => (
-              <TaskCard
+              <div
                 key={task._id}
-                task={task}
-                onEdit={setSelectedTask}
-                onDelete={() => deleteMutation.mutate(task._id)}
-                projectId={projectId!}
-              />
+                className={task.status === 'Done' ? 'opacity-50 grayscale' : ''}
+              >
+                <TaskCard
+                  task={task}
+                  onView={setViewTask}
+                  onEdit={handleEdit}
+                  onDelete={() => deleteMutation.mutate(task._id)}
+                  projectId={projectId!}
+                />
+              </div>
             ))}
           </div>
         ) : (
@@ -217,13 +232,18 @@ export default function TasksPage() {
                   </header>
                   <div className="p-6 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {list.map(task => (
-                      <TaskCard
+                      <div
                         key={task._id}
-                        task={task}
-                        onEdit={setSelectedTask}
-                        onDelete={() => deleteMutation.mutate(task._id)}
-                        projectId={projectId!}
-                      />
+                        className={task.status === 'Done' ? 'opacity-50 grayscale' : ''}
+                      >
+                        <TaskCard
+                          task={task}
+                          onView={setViewTask}
+                          onEdit={handleEdit}
+                          onDelete={() => deleteMutation.mutate(task._id)}
+                          projectId={projectId!}
+                        />
+                      </div>
                     ))}
                   </div>
                 </section>
@@ -233,12 +253,22 @@ export default function TasksPage() {
         )}
       </main>
 
-      {/* Modals */}
       <CreateTaskModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         projectId={projectId!}
       />
+
+      <TaskViewModal
+        isOpen={!!viewTask}
+        task={viewTask}
+        onClose={() => setViewTask(null)}
+        onEdit={(task) => {
+          setViewTask(null);
+          setSelectedTask(task);
+        }}
+      />
+
 
       <EditTaskModal
         isOpen={!!selectedTask}
