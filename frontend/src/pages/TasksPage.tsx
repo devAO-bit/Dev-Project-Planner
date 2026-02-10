@@ -83,12 +83,20 @@ export default function TasksPage() {
     done: tasks.filter(t => t.status === 'Done').length,
   };
 
-  const groupedTasks = tasks.reduce<Record<string, Task[]>>((acc, task) => {
-    const key = task.featureId || 'unassigned';
-    acc[key] = acc[key] || [];
-    acc[key].push(task);
-    return acc;
-  }, {});
+const groupedTasks = tasks.reduce<Record<string, Task[]>>((acc, task) => {
+  const featureKey =
+    typeof task.featureId === 'object'
+      ? task.featureId?._id
+      : task.featureId;
+
+  const key = featureKey ?? 'unassigned';
+
+  if (!acc[key]) acc[key] = [];
+  acc[key].push(task);
+
+  return acc;
+}, {});
+
 
   /* ---------------- Mutations ---------------- */
 
