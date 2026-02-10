@@ -30,7 +30,21 @@ export default function TaskViewModal({ isOpen, task, onClose, onEdit }: Props) 
         {/* Content */}
         <div className="px-6 py-5 space-y-4">
           <Detail label="Title" value={task.title} />
-          {task.description && <Detail label="Description" value={task.description} />}
+
+          {task.featureId && (
+            <Detail
+                label="Feature"
+                value={
+                typeof task.featureId === 'string'
+                    ? task.featureId
+                    : task.featureId.name
+                }
+            />
+            )}
+
+          {task.description && (
+            <Detail label="Description" value={task.description} />
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <Detail label="Status" value={task.status} />
