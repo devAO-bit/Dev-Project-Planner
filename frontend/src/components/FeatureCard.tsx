@@ -2,14 +2,16 @@
 import type { Feature } from '@/types';
 import { getStatusColor, getPriorityColor, getFeatureTypeColor } from '@/lib/utils';
 import { Edit, Trash2, ListTodo } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface FeatureCardProps {
   feature: Feature;
   onEdit: (feature: Feature) => void;
   onDelete: (feature: Feature) => void;
+  projectId: string;
 }
 
-export default function FeatureCard({ feature, onEdit, onDelete }: FeatureCardProps) {
+export default function FeatureCard({ feature, onEdit, onDelete, projectId }: FeatureCardProps) {
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (window.confirm(`Delete "${feature.name}"? This will also delete all associated tasks.`)) {
@@ -78,6 +80,14 @@ export default function FeatureCard({ feature, onEdit, onDelete }: FeatureCardPr
 
         {/* Actions */}
         <div className="flex items-center justify-end gap-2">
+          <Link
+            to={`/projects/${projectId}/tasks?featureId=${feature._id}`}
+            className="p-2 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition"
+            title="View tasks"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ListTodo className="w-4 h-4" />
+          </Link>
           <button
             onClick={handleEdit}
             className="p-2 text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition"

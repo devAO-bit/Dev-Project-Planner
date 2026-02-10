@@ -1,7 +1,7 @@
 // src/pages/TasksPage.tsx
-import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect } from "react";
+import { useParams, Link, useSearchParams } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Plus,
@@ -12,52 +12,59 @@ import {
   Target,
   LayoutGrid,
   Layers,
-  Rows
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { tasksApi, featuresApi, projectsApi } from '@/services/api';
-import type { Task, TaskStatus, Priority } from '@/types';
-import CreateTaskModal from '@/components/CreateTaskModal';
-import EditTaskModal from '@/components/EditTaskModal';
-import TaskCard from '@/components/TaskCard';
-import TaskViewModal from '@/components/TaskViewModel';
-
+  Rows,
+} from "lucide-react";
+import { toast } from "sonner";
+import { tasksApi, featuresApi, projectsApi } from "@/services/api";
+import type { Task, TaskStatus, Priority } from "@/types";
+import CreateTaskModal from "@/components/CreateTaskModal";
+import EditTaskModal from "@/components/EditTaskModal";
+import TaskCard from "@/components/TaskCard";
+import TaskViewModal from "@/components/TaskViewModel";
 
 export default function TasksPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const queryClient = useQueryClient();
 
+  const [searchParams] = useSearchParams();
+  const featureIdFromUrl = searchParams.get("featureId");
+
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [viewTask, setViewTask] = useState<Task | null>(null);
 
+  const [statusFilter, setStatusFilter] = useState<TaskStatus | "all">("all");
+  const [priorityFilter, setPriorityFilter] = useState<Priority | "all">("all");
+  const [featureFilter, setFeatureFilter] = useState(featureIdFromUrl ?? "all");
+  const [view, setView] = useState<"grid" | "grouped">("grid");
 
-  const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all');
-  const [priorityFilter, setPriorityFilter] = useState<Priority | 'all'>('all');
-  const [featureFilter, setFeatureFilter] = useState('all');
-  const [view, setView] = useState<'grid' | 'grouped'>('grid');
+  useEffect(() => {
+    if (featureIdFromUrl) {
+      setFeatureFilter(featureIdFromUrl);
+    }
+  }, [featureIdFromUrl]);
 
   /* ---------------- Queries ---------------- */
 
   const { data: projectData } = useQuery({
-    queryKey: ['project', projectId],
+    queryKey: ["project", projectId],
     queryFn: () => projectsApi.getById(projectId!),
     enabled: !!projectId,
   });
 
   const { data: tasksData, isLoading } = useQuery({
-    queryKey: ['tasks', projectId, statusFilter, priorityFilter, featureFilter],
+    queryKey: ["tasks", projectId, statusFilter, priorityFilter, featureFilter],
     queryFn: () =>
       tasksApi.getByProject(projectId!, {
-        status: statusFilter !== 'all' ? statusFilter : undefined,
-        priority: priorityFilter !== 'all' ? priorityFilter : undefined,
-        featureId: featureFilter !== 'all' ? featureFilter : undefined,
+        status: statusFilter !== "all" ? statusFilter : undefined,
+        priority: priorityFilter !== "all" ? priorityFilter : undefined,
+        featureId: featureFilter !== "all" ? featureFilter : undefined,
       }),
     enabled: !!projectId,
   });
 
   const { data: featuresData } = useQuery({
-    queryKey: ['features', projectId],
+    queryKey: ["features", projectId],
     queryFn: () => featuresApi.getByProject(projectId!),
     enabled: !!projectId,
   });
@@ -70,56 +77,55 @@ export default function TasksPage() {
 
   // move completed tasks to bottom
   const tasks = [...rawTasks].sort((a, b) => {
-    if (a.status === 'Done' && b.status !== 'Done') return 1;
-    if (a.status !== 'Done' && b.status === 'Done') return -1;
+    if (a.status === "Done" && b.status !== "Done") return 1;
+    if (a.status !== "Done" && b.status === "Done") return -1;
     return 0;
   });
 
   const stats = {
     total: tasks.length,
-    todo: tasks.filter(t => t.status === 'Todo').length,
-    inProgress: tasks.filter(t => t.status === 'In Progress').length,
-    review: tasks.filter(t => t.status === 'Review').length,
-    done: tasks.filter(t => t.status === 'Done').length,
+    todo: tasks.filter((t) => t.status === "Todo").length,
+    inProgress: tasks.filter((t) => t.status === "In Progress").length,
+    review: tasks.filter((t) => t.status === "Review").length,
+    done: tasks.filter((t) => t.status === "Done").length,
   };
 
-const groupedTasks = tasks.reduce<Record<string, Task[]>>((acc, task) => {
-  const featureKey =
-    typeof task.featureId === 'object'
-      ? task.featureId?._id
-      : task.featureId;
+  const groupedTasks = tasks.reduce<Record<string, Task[]>>((acc, task) => {
+    const featureKey =
+      typeof task.featureId === "object" ? task.featureId?._id : task.featureId;
 
-  const key = featureKey ?? 'unassigned';
+    const key = featureKey ?? "unassigned";
 
-  if (!acc[key]) acc[key] = [];
-  acc[key].push(task);
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(task);
 
-  return acc;
-}, {});
-
+    return acc;
+  }, {});
 
   /* ---------------- Mutations ---------------- */
 
   const deleteMutation = useMutation({
     mutationFn: tasksApi.delete,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
-      toast.success('Task deleted');
+      queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
+      toast.success("Task deleted");
     },
-    onError: (err: any) => toast.error(err.message || 'Failed to delete task'),
+    onError: (err: any) => toast.error(err.message || "Failed to delete task"),
   });
 
   /* ---------------- Handlers ---------------- */
 
   const quickFilter = (status: TaskStatus) => {
     setStatusFilter(status);
-    setPriorityFilter('all');
-    setFeatureFilter('all');
+    setPriorityFilter("all");
+    setFeatureFilter("all");
   };
 
   const handleEdit = (task: Task) => {
-    if (task.status === 'Done') {
-      toast.warning('This task is already completed. Editing it may break progress history.');
+    if (task.status === "Done") {
+      toast.warning(
+        "This task is already completed. Editing it may break progress history.",
+      );
     }
     setSelectedTask(task);
   };
@@ -141,7 +147,7 @@ const groupedTasks = tasks.reduce<Record<string, Task[]>>((acc, task) => {
       <div className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-4">
           <Link
-            to={`/projects/${projectId}`}
+            to={`/projects/${projectId}/features`}
             className="text-gray-600 hover:text-gray-900 flex items-center gap-2"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -163,19 +169,45 @@ const groupedTasks = tasks.reduce<Record<string, Task[]>>((acc, task) => {
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">{project?.name}</h1>
-          <p className="text-gray-600 mt-1">Track and manage tasks efficiently</p>
+          <p className="text-gray-600 mt-1">
+            Track and manage tasks efficiently
+          </p>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Stat label="Total" value={stats.total} icon={ListTodo} />
-          <Stat label="Todo" value={stats.todo} icon={AlertCircle} onClick={() => quickFilter('Todo')} />
-          <Stat label="In Progress" value={stats.inProgress} icon={Clock} onClick={() => quickFilter('In Progress')} />
-          <Stat label="Review" value={stats.review} icon={Target} onClick={() => quickFilter('Review')} />
-          <Stat label="Done" value={stats.done} icon={CheckCircle2} onClick={() => quickFilter('Done')} />
+          <Stat
+            label="Todo"
+            value={stats.todo}
+            icon={AlertCircle}
+            onClick={() => quickFilter("Todo")}
+          />
+          <Stat
+            label="In Progress"
+            value={stats.inProgress}
+            icon={Clock}
+            onClick={() => quickFilter("In Progress")}
+          />
+          <Stat
+            label="Review"
+            value={stats.review}
+            icon={Target}
+            onClick={() => quickFilter("Review")}
+          />
+          <Stat
+            label="Done"
+            value={stats.done}
+            icon={CheckCircle2}
+            onClick={() => quickFilter("Done")}
+          />
         </div>
 
         <div className="bg-white rounded-xl border p-5 flex flex-wrap gap-4 items-end">
-          <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter}>
+          <FilterSelect
+            label="Status"
+            value={statusFilter}
+            onChange={setStatusFilter}
+          >
             <option value="all">All</option>
             <option value="Todo">Todo</option>
             <option value="In Progress">In Progress</option>
@@ -183,7 +215,11 @@ const groupedTasks = tasks.reduce<Record<string, Task[]>>((acc, task) => {
             <option value="Done">Done</option>
           </FilterSelect>
 
-          <FilterSelect label="Priority" value={priorityFilter} onChange={setPriorityFilter}>
+          <FilterSelect
+            label="Priority"
+            value={priorityFilter}
+            onChange={setPriorityFilter}
+          >
             <option value="all">All</option>
             <option value="Critical">Critical</option>
             <option value="High">High</option>
@@ -191,18 +227,30 @@ const groupedTasks = tasks.reduce<Record<string, Task[]>>((acc, task) => {
             <option value="Low">Low</option>
           </FilterSelect>
 
-          <FilterSelect label="Feature" value={featureFilter} onChange={setFeatureFilter}>
+          <FilterSelect
+            label="Feature"
+            value={featureFilter}
+            onChange={setFeatureFilter}
+          >
             <option value="all">All</option>
-            {features.map(f => (
-              <option key={f._id} value={f._id}>{f.name}</option>
+            {features.map((f) => (
+              <option key={f._id} value={f._id}>
+                {f.name}
+              </option>
             ))}
           </FilterSelect>
 
           <div className="ml-auto flex rounded-lg border overflow-hidden">
-            <ViewButton active={view === 'grid'} onClick={() => setView('grid')}>
+            <ViewButton
+              active={view === "grid"}
+              onClick={() => setView("grid")}
+            >
               <LayoutGrid className="w-4 h-4" />
             </ViewButton>
-            <ViewButton active={view === 'grouped'} onClick={() => setView('grouped')}>
+            <ViewButton
+              active={view === "grouped"}
+              onClick={() => setView("grouped")}
+            >
               <Rows className="w-4 h-4" />
             </ViewButton>
           </div>
@@ -210,12 +258,12 @@ const groupedTasks = tasks.reduce<Record<string, Task[]>>((acc, task) => {
 
         {tasks.length === 0 ? (
           <EmptyState onCreate={() => setIsCreateModalOpen(true)} />
-        ) : view === 'grid' ? (
+        ) : view === "grid" ? (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {tasks.map(task => (
+            {tasks.map((task) => (
               <div
                 key={task._id}
-                className={task.status === 'Done' ? 'opacity-50 grayscale' : ''}
+                className={task.status === "Done" ? "opacity-50 grayscale" : ""}
               >
                 <TaskCard
                   task={task}
@@ -230,19 +278,23 @@ const groupedTasks = tasks.reduce<Record<string, Task[]>>((acc, task) => {
         ) : (
           <div className="space-y-6">
             {Object.entries(groupedTasks).map(([key, list]) => {
-              const feature = features.find(f => f._id === key);
+              const feature = features.find((f) => f._id === key);
               return (
                 <section key={key} className="bg-white rounded-xl border">
                   <header className="px-6 py-4 border-b font-semibold flex items-center gap-2">
                     <Layers className="w-4 h-4 text-blue-600" />
-                    {feature?.name ?? 'Unassigned'}
-                    <span className="ml-auto text-sm text-gray-500">{list.length}</span>
+                    {feature?.name ?? "Unassigned"}
+                    <span className="ml-auto text-sm text-gray-500">
+                      {list.length}
+                    </span>
                   </header>
                   <div className="p-6 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {list.map(task => (
+                    {list.map((task) => (
                       <div
                         key={task._id}
-                        className={task.status === 'Done' ? 'opacity-50 grayscale' : ''}
+                        className={
+                          task.status === "Done" ? "opacity-50 grayscale" : ""
+                        }
                       >
                         <TaskCard
                           task={task}
@@ -277,7 +329,6 @@ const groupedTasks = tasks.reduce<Record<string, Task[]>>((acc, task) => {
         }}
       />
 
-
       <EditTaskModal
         isOpen={!!selectedTask}
         onClose={() => setSelectedTask(null)}
@@ -306,10 +357,12 @@ function Stat({ label, value, icon: Icon, onClick }: any) {
 function FilterSelect({ label, value, onChange, children }: any) {
   return (
     <div>
-      <label className="block text-xs font-medium text-gray-500 mb-1">{label}</label>
+      <label className="block text-xs font-medium text-gray-500 mb-1">
+        {label}
+      </label>
       <select
         value={value}
-        onChange={e => onChange(e.target.value)}
+        onChange={(e) => onChange(e.target.value)}
         className="px-3 py-2 rounded-lg border bg-gray-50 focus:bg-white"
       >
         {children}
@@ -322,7 +375,7 @@ function ViewButton({ active, children, onClick }: any) {
   return (
     <button
       onClick={onClick}
-      className={`px-3 py-2 ${active ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'}`}
+      className={`px-3 py-2 ${active ? "bg-blue-600 text-white" : "bg-white text-gray-600 hover:bg-gray-100"}`}
     >
       {children}
     </button>
@@ -334,7 +387,9 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
     <div className="bg-white border rounded-xl p-12 text-center">
       <ListTodo className="w-12 h-12 mx-auto text-blue-600 mb-4" />
       <h3 className="text-xl font-semibold">No tasks found</h3>
-      <p className="text-gray-600 mt-2 mb-6">Try adjusting filters or create a new task</p>
+      <p className="text-gray-600 mt-2 mb-6">
+        Try adjusting filters or create a new task
+      </p>
       <button
         onClick={onCreate}
         className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium"

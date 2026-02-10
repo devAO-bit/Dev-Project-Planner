@@ -1,33 +1,25 @@
 // src/pages/FeaturesPage.tsx
-import { useMemo, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import {
-  useQuery,
-  useMutation,
-  useQueryClient,
-} from '@tanstack/react-query';
+import { useMemo, useState } from "react";
+import { useParams, Link } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  ArrowRight,
   Plus,
   Filter,
   Layers,
   CheckCircle2,
   Clock,
   Target,
-} from 'lucide-react';
-import { toast } from 'sonner';
+} from "lucide-react";
+import { toast } from "sonner";
 
-import { featuresApi, projectsApi } from '@/services/api';
-import type {
-  Feature,
-  FeatureType,
-  FeatureStatus,
-  Priority,
-} from '@/types';
+import { featuresApi, projectsApi } from "@/services/api";
+import type { Feature, FeatureType, FeatureStatus, Priority } from "@/types";
 
-import CreateFeatureModal from '@/components/CreateFeatureModal';
-import EditFeatureModal from '@/components/EditFeatureModal';
-import FeatureCard from '@/components/FeatureCard';
+import CreateFeatureModal from "@/components/CreateFeatureModal";
+import EditFeatureModal from "@/components/EditFeatureModal";
+import FeatureCard from "@/components/FeatureCard";
 
 export default function FeaturesPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -35,32 +27,30 @@ export default function FeaturesPage() {
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedFeature, setSelectedFeature] =
-    useState<Feature | null>(null);
+  const [selectedFeature, setSelectedFeature] = useState<Feature | null>(null);
 
-  const [typeFilter, setTypeFilter] =
-    useState<FeatureType | 'all'>('all');
-  const [statusFilter, setStatusFilter] =
-    useState<FeatureStatus | 'all'>('all');
-  const [priorityFilter, setPriorityFilter] =
-    useState<Priority | 'all'>('all');
+  const [typeFilter, setTypeFilter] = useState<FeatureType | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<FeatureStatus | "all">(
+    "all",
+  );
+  const [priorityFilter, setPriorityFilter] = useState<Priority | "all">("all");
 
   /* ---------------------------------- */
   /* Queries                            */
   /* ---------------------------------- */
 
   const { data: projectData } = useQuery({
-    queryKey: ['project', projectId],
+    queryKey: ["project", projectId],
     queryFn: () => projectsApi.getById(projectId!),
     enabled: !!projectId,
   });
 
   const { data: featuresData, isLoading } = useQuery({
-    queryKey: ['features', projectId, typeFilter, statusFilter],
+    queryKey: ["features", projectId, typeFilter, statusFilter],
     queryFn: () =>
       featuresApi.getByProject(projectId!, {
-        type: typeFilter !== 'all' ? typeFilter : undefined,
-        status: statusFilter !== 'all' ? statusFilter : undefined,
+        type: typeFilter !== "all" ? typeFilter : undefined,
+        status: statusFilter !== "all" ? statusFilter : undefined,
       }),
     enabled: !!projectId,
   });
@@ -73,31 +63,24 @@ export default function FeaturesPage() {
   /* ---------------------------------- */
 
   const filteredFeatures = useMemo(() => {
-    if (priorityFilter === 'all') return features;
-    return features.filter(
-      (f) => f.priority === priorityFilter
-    );
+    if (priorityFilter === "all") return features;
+    return features.filter((f) => f.priority === priorityFilter);
   }, [features, priorityFilter]);
 
   const stats = useMemo(() => {
     const total = features.length;
-    const completed = features.filter(
-      (f) => f.status === 'Completed'
-    ).length;
+    const completed = features.filter((f) => f.status === "Completed").length;
     const inProgress = features.filter(
-      (f) => f.status === 'In Progress'
+      (f) => f.status === "In Progress",
     ).length;
-    const core = features.filter(
-      (f) => f.type === 'core'
-    ).length;
+    const core = features.filter((f) => f.type === "core").length;
 
     return {
       total,
       completed,
       inProgress,
       core,
-      completionRate:
-        total === 0 ? 0 : Math.round((completed / total) * 100),
+      completionRate: total === 0 ? 0 : Math.round((completed / total) * 100),
     };
   }, [features]);
 
@@ -109,15 +92,15 @@ export default function FeaturesPage() {
     mutationFn: featuresApi.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ['features', projectId],
+        queryKey: ["features", projectId],
       });
       queryClient.invalidateQueries({
-        queryKey: ['project', projectId],
+        queryKey: ["project", projectId],
       });
-      toast.success('Feature deleted');
+      toast.success("Feature deleted");
     },
     onError: () => {
-      toast.error('Failed to delete feature');
+      toast.error("Failed to delete feature");
     },
   });
 
@@ -152,13 +135,23 @@ export default function FeaturesPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="sticky top-0 z-40 bg-white/80 backdrop-blur border-b">
-        <div className="max-w-7xl mx-auto px-6 py-4">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-4">
+          {/* Left: Back to Project */}
           <Link
             to={`/projects/${projectId}`}
             className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Project
+          </Link>
+
+          {/* Right: Go to Tasks */}
+          <Link
+            to={`/projects/${projectId}/tasks`}
+            className="ml-auto inline-flex items-center gap-2 text-purple-600 hover:text-purple-800 font-medium"
+          >
+            Go to Tasks
+            <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
       </div>
@@ -168,9 +161,7 @@ export default function FeaturesPage() {
         <div className="rounded-2xl bg-gradient-to-br from-purple-600 to-purple-800 p-8 text-white">
           <div className="flex flex-wrap items-center justify-between gap-6">
             <div>
-              <h1 className="text-4xl font-bold mb-2">
-                {project?.name}
-              </h1>
+              <h1 className="text-4xl font-bold mb-2">{project?.name}</h1>
               <p className="text-purple-100">
                 Manage and track project features
               </p>
@@ -206,16 +197,8 @@ export default function FeaturesPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Stat label="Total" value={stats.total} icon={Layers} />
           <Stat label="Core" value={stats.core} icon={Target} />
-          <Stat
-            label="In Progress"
-            value={stats.inProgress}
-            icon={Clock}
-          />
-          <Stat
-            label="Completed"
-            value={stats.completed}
-            icon={CheckCircle2}
-          />
+          <Stat label="In Progress" value={stats.inProgress} icon={Clock} />
+          <Stat label="Completed" value={stats.completed} icon={CheckCircle2} />
         </div>
 
         {/* Filters */}
@@ -224,14 +207,14 @@ export default function FeaturesPage() {
             <Filter className="w-4 h-4 text-gray-500" />
             <h2 className="font-semibold">Filters</h2>
 
-            {(typeFilter !== 'all' ||
-              statusFilter !== 'all' ||
-              priorityFilter !== 'all') && (
+            {(typeFilter !== "all" ||
+              statusFilter !== "all" ||
+              priorityFilter !== "all") && (
               <button
                 onClick={() => {
-                  setTypeFilter('all');
-                  setStatusFilter('all');
-                  setPriorityFilter('all');
+                  setTypeFilter("all");
+                  setStatusFilter("all");
+                  setPriorityFilter("all");
                 }}
                 className="ml-auto text-sm text-purple-600 hover:underline"
               >
@@ -246,10 +229,10 @@ export default function FeaturesPage() {
               value={typeFilter}
               onChange={setTypeFilter}
               options={[
-                ['all', 'All'],
-                ['core', 'Core'],
-                ['nice-to-have', 'Nice to have'],
-                ['stretch', 'Stretch'],
+                ["all", "All"],
+                ["core", "Core"],
+                ["nice-to-have", "Nice to have"],
+                ["stretch", "Stretch"],
               ]}
             />
             <Select
@@ -257,12 +240,12 @@ export default function FeaturesPage() {
               value={statusFilter}
               onChange={setStatusFilter}
               options={[
-                ['all', 'All'],
-                ['Planned', 'Planned'],
-                ['In Progress', 'In Progress'],
-                ['Testing', 'Testing'],
-                ['Completed', 'Completed'],
-                ['Blocked', 'Blocked'],
+                ["all", "All"],
+                ["Planned", "Planned"],
+                ["In Progress", "In Progress"],
+                ["Testing", "Testing"],
+                ["Completed", "Completed"],
+                ["Blocked", "Blocked"],
               ]}
             />
             <Select
@@ -270,11 +253,11 @@ export default function FeaturesPage() {
               value={priorityFilter}
               onChange={setPriorityFilter}
               options={[
-                ['all', 'All'],
-                ['Critical', 'Critical'],
-                ['High', 'High'],
-                ['Medium', 'Medium'],
-                ['Low', 'Low'],
+                ["all", "All"],
+                ["Critical", "Critical"],
+                ["High", "High"],
+                ["Medium", "Medium"],
+                ["Low", "Low"],
               ]}
             />
           </div>
@@ -284,12 +267,8 @@ export default function FeaturesPage() {
         {filteredFeatures.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 text-center border">
             <Layers className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-xl font-bold mb-2">
-              No features found
-            </h3>
-            <p className="text-gray-600 mb-6">
-              Add features or adjust filters
-            </p>
+            <h3 className="text-xl font-bold mb-2">No features found</h3>
+            <p className="text-gray-600 mb-6">Add features or adjust filters</p>
             <button
               onClick={() => setIsCreateModalOpen(true)}
               className="inline-flex items-center gap-2 bg-purple-600 text-white px-6 py-3 rounded-xl font-semibold"
@@ -304,6 +283,7 @@ export default function FeaturesPage() {
               <FeatureCard
                 key={feature._id}
                 feature={feature}
+                projectId={projectId!}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
               />
@@ -356,17 +336,10 @@ function Stat({
   );
 }
 
-function Select({
-  label,
-  value,
-  onChange,
-  options,
-}: any) {
+function Select({ label, value, onChange, options }: any) {
   return (
     <div>
-      <label className="block text-xs text-gray-500 mb-1">
-        {label}
-      </label>
+      <label className="block text-xs text-gray-500 mb-1">{label}</label>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
