@@ -1,13 +1,3 @@
-Love this project, Abhishek — this is **not** a toy planner, this is a *thinking system for developers*. 👏
-Let’s turn it into a **clean, confident, GitHub-ready `README.md`** that clearly communicates:
-
-* what the project is
-* why it exists
-* what’s included in the MVP
-* what’s coming next
-* how someone can run it locally
-
-Below is a **polished README you can directly copy-paste**. I’ve written it like a real production repo, not a tutorial repo.
 
 ---
 
