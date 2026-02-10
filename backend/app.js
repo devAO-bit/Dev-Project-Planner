@@ -110,7 +110,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/features', featureRoutes);
 app.use('/api/tasks', taskRoutes);
-
+app.use('/api/dashboard', require('./routes/dashboard.routes'));
 /**
  * 404 handler
  */

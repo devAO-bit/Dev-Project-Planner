@@ -15,7 +15,8 @@ import type {
   Task,
   CreateTaskData,
   UpdateTaskData,
-  ProjectStats
+  ProjectStats,
+  DashboardStats
 } from '@/types';
 
 // Auth API
@@ -100,4 +101,10 @@ export const tasksApi = {
 
   reorder: (tasks: Array<{ id: string; order: number }>) =>
     apiClient.put<ApiResponse<null>>('/tasks/reorder', { tasks }),
+};
+
+// Dashboard API
+export const dashboardApi = {
+  getStats: () =>
+    apiClient.get<ApiResponse<DashboardStats>>('/dashboard/stats'),
 };

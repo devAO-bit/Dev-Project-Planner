@@ -28,6 +28,14 @@ export interface RegisterCredentials {
   password: string;
 }
 
+export interface DashboardStats {
+  totalProjects: number;
+  totalFeatures: number;
+  completedFeatures: number;
+  totalTasks: number;
+  completedTasks: number;
+}
+
 export type ProjectCategory =
   | "Web App"
   | "Mobile"

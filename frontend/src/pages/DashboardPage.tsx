@@ -1,8 +1,8 @@
 // src/pages/DashboardPage.tsx
-import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
-import { projectsApi } from '@/services/api';
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { projectsApi, dashboardApi } from "@/services/api";
 import {
   FolderKanban,
   Plus,
@@ -12,17 +12,22 @@ import {
   ArrowRight,
   Sparkles,
   Target,
-  Zap,
-  Calendar,
-} from 'lucide-react';
-import type { Project } from '@/types';
-import { getStatusColor, calculateDaysRemaining } from '@/lib/utils';
+} from "lucide-react";
+import type { Project } from "@/types";
+import { getStatusColor, calculateDaysRemaining } from "@/lib/utils";
 
 export default function DashboardPage() {
   const { data, isLoading } = useQuery({
-    queryKey: ['projects'],
+    queryKey: ["projects"],
     queryFn: projectsApi.getAll,
   });
+
+  const { data: dashboardStatsRes } = useQuery({
+    queryKey: ["dashboard-stats"],
+    queryFn: dashboardApi.getStats,
+  });
+
+  const dashboardStats = dashboardStatsRes?.data?.data;
 
   const projects: Project[] = data?.data?.data ?? [];
 
@@ -30,16 +35,16 @@ export default function DashboardPage() {
   const stats = useMemo(() => {
     return {
       total: projects.length,
-      inProgress: projects.filter(p => p.status === 'In Progress').length,
-      completed: projects.filter(p => p.status === 'Completed').length,
-      planning: projects.filter(p => p.status === 'Planning').length,
+      inProgress: projects.filter((p) => p.status === "In Progress").length,
+      completed: projects.filter((p) => p.status === "Completed").length,
+      planning: projects.filter((p) => p.status === "Planning").length,
     };
   }, [projects]);
 
   const avgProgress = useMemo(() => {
     if (!projects.length) return 0;
     return Math.round(
-      projects.reduce((sum, p) => sum + p.progress, 0) / projects.length
+      projects.reduce((sum, p) => sum + p.progress, 0) / projects.length,
     );
   }, [projects]);
 
@@ -63,7 +68,6 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
       <div className="max-w-7xl mx-auto px-4 py-10 space-y-12">
-
         {/* ---------------- Hero ---------------- */}
         <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-600 via-primary-700 to-primary-900 p-10 shadow-2xl animate-fadeIn">
           <div className="absolute inset-0 opacity-10">
@@ -122,28 +126,28 @@ export default function DashboardPage() {
         <section className="grid grid-cols-1 md:grid-cols-4 gap-6 animate-slideUp">
           {[
             {
-              label: 'Projects',
+              label: "Projects",
               value: stats.total,
               icon: FolderKanban,
-              color: 'blue',
+              color: "blue",
             },
             {
-              label: 'In Progress',
+              label: "In Progress",
               value: stats.inProgress,
               icon: TrendingUp,
-              color: 'yellow',
+              color: "yellow",
             },
             {
-              label: 'Completed',
+              label: "Completed",
               value: stats.completed,
               icon: CheckCircle2,
-              color: 'green',
+              color: "green",
             },
             {
-              label: 'Planning',
+              label: "Planning",
               value: stats.planning,
               icon: Clock,
-              color: 'purple',
+              color: "purple",
             },
           ].map(({ label, value, icon: Icon, color }) => (
             <div
@@ -156,6 +160,38 @@ export default function DashboardPage() {
             </div>
           ))}
         </section>
+
+        {/* ---------------- Feature & Task Stats (NEW) ---------------- */}
+        {dashboardStats && (
+          <section className="grid grid-cols-1 md:grid-cols-4 gap-6 animate-slideUp">
+            {[
+              {
+                label: "Total Features",
+                value: dashboardStats.totalFeatures,
+              },
+              {
+                label: "Completed Features",
+                value: dashboardStats.completedFeatures,
+              },
+              {
+                label: "Total Tasks",
+                value: dashboardStats.totalTasks,
+              },
+              {
+                label: "Completed Tasks",
+                value: dashboardStats.completedTasks,
+              },
+            ].map(({ label, value }) => (
+              <div
+                key={label}
+                className="bg-white rounded-2xl border p-6 hover:shadow-xl transition"
+              >
+                <div className="text-3xl font-bold">{value}</div>
+                <div className="text-sm text-gray-500">{label}</div>
+              </div>
+            ))}
+          </section>
+        )}
 
         {/* ---------------- Recent Projects ---------------- */}
         <section className="bg-white rounded-2xl border shadow-lg overflow-hidden animate-slideUp">
@@ -187,7 +223,7 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="divide-y">
-              {recentProjects.map(project => {
+              {recentProjects.map((project) => {
                 const hasEndDate = Boolean(project.endDate);
                 const days = hasEndDate
                   ? calculateDaysRemaining(project.endDate)
@@ -201,12 +237,10 @@ export default function DashboardPage() {
                     className="block p-6 hover:bg-primary-50 transition"
                   >
                     <div className="flex justify-between mb-2">
-                      <h3 className="font-semibold text-lg">
-                        {project.name}
-                      </h3>
+                      <h3 className="font-semibold text-lg">{project.name}</h3>
                       <span
                         className={`px-3 py-1 text-xs rounded-full ${getStatusColor(
-                          project.status
+                          project.status,
                         )}`}
                       >
                         {project.status}
@@ -220,14 +254,14 @@ export default function DashboardPage() {
                     <div className="flex justify-between items-center">
                       <span
                         className={`text-sm font-medium ${
-                          overdue ? 'text-red-600' : 'text-gray-600'
+                          overdue ? "text-red-600" : "text-gray-600"
                         }`}
                       >
                         {!hasEndDate
-                          ? 'No due date'
+                          ? "No due date"
                           : overdue
-                          ? 'Overdue'
-                          : `${days} days left`}
+                            ? "Overdue"
+                            : `${days} days left`}
                       </span>
 
                       <div className="flex items-center gap-2">
