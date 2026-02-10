@@ -84,7 +84,15 @@ export interface CreateProjectData {
   status?: ProjectStatus;
 }
 
-export type UpdateProjectData = Partial<CreateProjectData>;
+export interface UpdateProjectData {
+  name?: string;
+  description?: string;
+  category?: ProjectCategory;
+  targetTimeline?: number;
+  difficulty?: ProjectDifficulty;
+  status?: ProjectStatus;
+  endDate?: string;
+}
 
 export type FeatureType = "core" | "nice-to-have" | "stretch";
 export type FeatureStatus =

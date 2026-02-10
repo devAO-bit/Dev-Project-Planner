@@ -1,5 +1,5 @@
 // src/pages/ProjectDetailPage.tsx
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams, Link } from 'react-router-dom';
 import {
@@ -12,14 +12,15 @@ import {
   Tag,
   TrendingUp,
   Clock,
-  CheckCircle2,
-  Circle,
+  Edit,
 } from 'lucide-react';
 import { projectsApi } from '@/services/api';
 import { formatDate } from '@/lib/utils';
+import EditProjectModal from '@/components/EditProjectModal';
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['project', id],
@@ -127,7 +128,7 @@ export default function ProjectDetailPage() {
       <div className="max-w-7xl mx-auto px-6 py-10 space-y-12">
         {/* HERO */}
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-600 to-primary-800 p-10 text-white">
-          <div className="flex flex-wrap gap-8 items-center justify-between">
+          <div className="flex flex-wrap gap-8 items-start justify-between">
             <div className="max-w-3xl">
               <div className="flex gap-3 mb-4">
                 <span
@@ -154,42 +155,54 @@ export default function ProjectDetailPage() {
               </p>
             </div>
 
-            {/* Progress ring */}
-            <div className="relative w-28 h-28">
-              <svg className="w-full h-full -rotate-90">
-                <circle
-                  cx="56"
-                  cy="56"
-                  r="48"
-                  stroke="currentColor"
-                  strokeWidth="8"
-                  fill="none"
-                  className="text-white/20"
-                />
-                <circle
-                  cx="56"
-                  cy="56"
-                  r="48"
-                  stroke="currentColor"
-                  strokeWidth="8"
-                  fill="none"
-                  strokeLinecap="round"
-                  className="text-white"
-                  style={{
-                    strokeDasharray: 2 * Math.PI * 48,
-                    strokeDashoffset:
-                      2 *
-                      Math.PI *
-                      48 *
-                      (1 - project.progress / 100),
-                  }}
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-2xl font-bold">
-                  {project.progress}%
-                </span>
+            <div className="flex flex-col items-end gap-4">
+              {/* Progress ring */}
+              <div className="relative w-28 h-28">
+                <svg className="w-full h-full -rotate-90">
+                  <circle
+                    cx="56"
+                    cy="56"
+                    r="48"
+                    stroke="currentColor"
+                    strokeWidth="8"
+                    fill="none"
+                    className="text-white/20"
+                  />
+                  <circle
+                    cx="56"
+                    cy="56"
+                    r="48"
+                    stroke="currentColor"
+                    strokeWidth="8"
+                    fill="none"
+                    strokeLinecap="round"
+                    className="text-white"
+                    style={{
+                      strokeDasharray: 2 * Math.PI * 48,
+                      strokeDashoffset:
+                        2 *
+                        Math.PI *
+                        48 *
+                        (1 - project.progress / 100),
+                    }}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-2xl font-bold">
+                    {project.progress}%
+                  </span>
+                </div>
               </div>
+
+              {/* Edit button */}
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-sm font-semibold shadow-sm transition"
+              >
+                <Edit className="w-4 h-4" />
+                Edit Project
+              </button>
             </div>
           </div>
         </div>
@@ -263,6 +276,11 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       </div>
+      <EditProjectModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        project={project}
+      />
     </div>
   );
 }
