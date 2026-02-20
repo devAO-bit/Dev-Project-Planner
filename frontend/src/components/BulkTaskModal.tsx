@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { tasksApi } from "@/services/api";
+import { toast } from "sonner";
+import type {Task, BulkCreateTaskData} from '../types'
 
 interface BulkTaskModalProps {
   featureId: string;
@@ -15,14 +17,16 @@ export default function BulkTaskModal({
   const [dueDate, setDueDate] = useState("");
   const queryClient = useQueryClient();
 
-  const { mutate, isPending, error } = useMutation({
+  const { mutate, isPending, error } = useMutation<Task[], Error, BulkCreateTaskData>({
     mutationFn: tasksApi.bulkCreate,
-    onSuccess: () => {
+    onSuccess: (tasks) => {
       queryClient.invalidateQueries({ queryKey: ["tasks", featureId] });
 
-      queryClient.invalidateQueries({ queryKey: ['features'] });
+      queryClient.invalidateQueries({ queryKey: ["features"] });
 
-       queryClient.invalidateQueries({ queryKey: ['projectStats'] });
+      queryClient.invalidateQueries({ queryKey: ["projectStats"] });
+
+      toast.success(`${tasks.length} tasks created successfully 🎉`);
 
       setTasksText("");
       setDueDate("");
@@ -40,6 +44,13 @@ export default function BulkTaskModal({
     });
   };
 
+  const parsedTasks = tasksText
+    .split("\n")
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+
+  const taskCount = parsedTasks.length;
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white w-[520px] rounded-xl shadow-xl p-6">
@@ -51,7 +62,20 @@ export default function BulkTaskModal({
           placeholder="Enter one task per line..."
           rows={8}
           className="w-full border rounded-md p-3 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          disabled={isPending || taskCount > 100}
         />
+
+        {taskCount > 0 && (
+          <div className="mb-3 text-sm text-gray-600">
+            {taskCount} task{taskCount > 1 ? "s" : ""} will be created
+          </div>
+        )}
+
+        {taskCount > 100 && (
+          <div className="text-red-500 text-sm mb-3">
+            Maximum 100 tasks allowed
+          </div>
+        )}
 
         <div className="mb-4">
           <label className="text-sm text-gray-600 block mb-1">

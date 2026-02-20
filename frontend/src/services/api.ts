@@ -102,8 +102,10 @@ export const tasksApi = {
   create: (data: CreateTaskData) =>
     apiClient.post<ApiResponse<Task>>("/tasks", data),
 
-  bulkCreate: (data: BulkCreateTaskData) =>
-    apiClient.post<ApiResponse<Task[]>>("/tasks/bulk", data),
+  bulkCreate: async (data: BulkCreateTaskData) => {
+  const res = await apiClient.post<ApiResponse<Task[]>>('/tasks/bulk', data);
+  return res.data.data;
+},
 
   update: (id: string, data: UpdateTaskData) =>
     apiClient.put<ApiResponse<Task>>(`/tasks/${id}`, data),
