@@ -2,6 +2,8 @@ const Task = require('../models/Task');
 const Project = require('../models/Project');
 const Feature = require('../models/Feature');
 const logger = require('../config/logger');
+const { syncProjectAndFeatureStats } = require("../services/stats.service");
+
 
 // Helper function to verify project ownership
 const verifyProjectOwnership = async (projectId, userId) => {
@@ -403,6 +405,106 @@ exports.reorderTasks = async (req, res, next) => {
         });
     } catch (error) {
         logger.error(`[${req.id}] Error reordering tasks`, error);
+        next(error);
+    }
+};
+
+
+exports.bulkCreateTasks = async (req, res, next) => {
+    try {
+        const { featureId, tasksText, dueDate } = req.body;
+
+        // Verify feature exists
+        const feature = await Feature.findById(featureId);
+
+        if (!feature) {
+            logger.warn(`[${req.id}] Feature not found for bulk task creation`, {
+                featureId
+            });
+
+            return res.status(404).json({
+                success: false,
+                message: "Feature not found",
+            });
+        }
+
+        // Verify project ownership
+        const verification = await verifyProjectOwnership(feature.projectId, req.user.id);
+        if (verification.error) {
+            logger.warn(`[${req.id}] Unauthorized bulk task creation attempt`, {
+                projectId: feature.projectId,
+                userId: req.user.id
+            });
+
+            return res.status(verification.status).json({
+                success: false,
+                message: verification.error
+            });
+        }
+
+        // Parse Tasks
+        let lines = tasksText.split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
+
+        lines = [...new Set(lines)];
+
+        if (lines.length === 0) {
+            logger.warn(`[${req.id}] No valid tasks provided for bulk creation`);
+
+            return res.status(400).json({
+                success: false,
+                message: "No valid tasks provided",
+            });
+        }
+
+        if (lines.length > 100) {
+            logger.warn(`[${req.id}] Too many tasks in bulk request`, {
+                count: lines.length
+            });
+
+            return res.status(413).json({
+                success: false,
+                message: "Maximum 100 tasks allowed per bulk request",
+            });
+        }
+
+        // Get the last task order for this project
+        const lastTask = await Task.findOne({ projectId: feature.projectId }).sort({ order: -1 });
+        let startOrder = lastTask ? lastTask.order + 1 : 0;
+
+        const taskDocuments = lines.map((title, index) => ({
+            projectId: feature.projectId,
+            featureId: feature._id,
+            title,
+            description: "",
+            status: "Todo",
+            priority: "Medium",
+            order: startOrder + index,
+            dueDate: dueDate ? new Date(dueDate) : undefined
+        }));
+
+        const createdTasks = await Task.insertMany(taskDocuments);
+
+        await syncProjectAndFeatureStats({
+            projectId: feature.projectId,
+            featureId: feature._id,
+        });
+
+        logger.info(`[${req.id}] Bulk tasks created`, {
+            featureId,
+            projectId: feature.projectId,
+            count: createdTasks.length,
+            userId: req.user.id
+        });
+
+        return res.status(201).json({
+            success: true,
+            message: 'Tasks created successfully',
+            createdCount: createdTasks.length,
+            data: createdTasks,
+        });
+
+    } catch (error) {
+        logger.error(`[${req.id}] Error creating bulk tasks`, error);
         next(error);
     }
 };

@@ -9,7 +9,8 @@ const {
     createTask,
     updateTask,
     deleteTask,
-    reorderTasks
+    reorderTasks,
+    bulkCreateTasks
 } = require('../controllers/task.controller');
 
 const router = express.Router();
@@ -73,11 +74,27 @@ const reorderValidation = [
         .isInt({ min: 0 }).withMessage('Order must be a non-negative integer')
 ];
 
+const bulkTaskValidation = [
+    body('featureId')
+        .notEmpty().withMessage('Feature ID is required')
+        .isMongoId().withMessage('Invalid feature ID'),
+
+    body('tasksText')
+        .notEmpty().withMessage('Tasks text is required')
+        .isString().withMessage('Tasks text must be a string')
+        .isLength({ max: 10000 }).withMessage('Tasks text cannot exceed 10000 characters'),
+
+    body('dueDate')
+        .optional()
+        .isISO8601().withMessage('Invalid due date format')
+];
+
 // All routes require authentication
 router.use(protect);
 
 // Routes
 router.post('/', validate(taskValidation), createTask);
+router.post("/bulk", validate(bulkTaskValidation), bulkCreateTasks);
 router.put('/reorder', validate(reorderValidation), reorderTasks);
 router.get('/project/:projectId', getTasks);
 router.get('/feature/:featureId', getTasksByFeature);
