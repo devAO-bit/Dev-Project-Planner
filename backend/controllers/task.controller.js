@@ -471,6 +471,21 @@ exports.bulkCreateTasks = async (req, res, next) => {
         const lastTask = await Task.findOne({ projectId: feature.projectId }).sort({ order: -1 });
         let startOrder = lastTask ? lastTask.order + 1 : 0;
 
+        if (dueDate) {
+            const selectedDate = new Date(dueDate);
+            const today = new Date();
+
+            // Reset time for accurate comparison
+            today.setHours(0, 0, 0, 0);
+
+            if (selectedDate < today) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Due date cannot be in the past',
+                });
+            }
+        }
+
         const taskDocuments = lines.map((title, index) => ({
             projectId: feature.projectId,
             featureId: feature._id,
