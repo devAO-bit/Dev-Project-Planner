@@ -2,6 +2,7 @@ const Feature = require('../models/Feature');
 const Project = require('../models/Project');
 const Task = require('../models/Task');
 const logger = require("../config/logger");
+const statsService = require('../services/stats.service');
 
 // Helper function to verify project ownership
 const verifyProjectOwnership = async (projectId, userId) => {
@@ -200,6 +201,12 @@ exports.updateFeature = async (req, res, next) => {
             }
         );
 
+        // Sync feature stats after update
+        await statsService.syncProjectAndFeatureStats({ 
+            projectId: feature.projectId._id, 
+            featureId: feature._id 
+        });
+
         logger.info(`[${req.id}] Feature updated`, {
             featureId: feature._id,
             projectId: feature.projectId,
@@ -253,6 +260,9 @@ exports.deleteFeature = async (req, res, next) => {
         // Delete all tasks associated with this feature
         await Task.deleteMany({ featureId: req.params.id });
         await Feature.findByIdAndDelete(req.params.id);
+
+        // Sync project stats after deletion
+        await statsService.syncProjectAndFeatureStats({ projectId: feature.projectId._id });
 
         logger.info(`[${req.id}] Feature deleted`, {
             featureId: feature._id,

@@ -214,6 +214,12 @@ exports.createTask = async (req, res, next) => {
         const task = await Task.create(req.body);
         await task.populate('featureId', 'name type');
 
+        // Sync stats after creation
+        await syncProjectAndFeatureStats({ 
+            projectId, 
+            featureId: featureId || null 
+        });
+
         logger.info(`[${req.id}] Task created`, {
             taskId: task._id,
             projectId,
@@ -232,9 +238,6 @@ exports.createTask = async (req, res, next) => {
     }
 };
 
-// @desc    Update task
-// @route   PUT /api/tasks/:id
-// @access  Private
 exports.updateTask = async (req, res, next) => {
     try {
         let task = await Task.findById(req.params.id)
@@ -263,6 +266,9 @@ exports.updateTask = async (req, res, next) => {
             });
         }
 
+        // Store old featureId for sync
+        const oldFeatureId = task.featureId;
+
         // Verify updated feature belongs to same project
         if (req.body.featureId) {
             const feature = await Feature.findOne({
@@ -288,6 +294,20 @@ exports.updateTask = async (req, res, next) => {
             req.body,
             { new: true, runValidators: true }
         ).populate('featureId', 'name type');
+
+        // Sync stats after update
+        await syncProjectAndFeatureStats({ 
+            projectId: task.projectId._id, 
+            featureId: task.featureId 
+        });
+
+        // If feature changed, sync old feature too
+        if (oldFeatureId && oldFeatureId.toString() !== (task.featureId ? task.featureId.toString() : null)) {
+            await syncProjectAndFeatureStats({ 
+                projectId: task.projectId._id, 
+                featureId: oldFeatureId 
+            });
+        }
 
         logger.info(`[${req.id}] Task updated`, {
             taskId: task._id,
@@ -337,6 +357,12 @@ exports.deleteTask = async (req, res, next) => {
         }
 
         await Task.findByIdAndDelete(req.params.id);
+
+        // Sync stats after deletion
+        await syncProjectAndFeatureStats({ 
+            projectId: task.projectId._id, 
+            featureId: task.featureId 
+        });
 
         logger.info(`[${req.id}] Task deleted`, {
             taskId: task._id,
@@ -411,116 +437,130 @@ exports.reorderTasks = async (req, res, next) => {
 
 
 exports.bulkCreateTasks = async (req, res, next) => {
-    try {
-        const { featureId, tasksText, dueDate } = req.body;
+  try {
+    const { featureId, tasks } = req.body;
 
-        // Verify feature exists
-        const feature = await Feature.findById(featureId);
-
-        if (!feature) {
-            logger.warn(`[${req.id}] Feature not found for bulk task creation`, {
-                featureId
-            });
-
-            return res.status(404).json({
-                success: false,
-                message: "Feature not found",
-            });
-        }
-
-        // Verify project ownership
-        const verification = await verifyProjectOwnership(feature.projectId, req.user.id);
-        if (verification.error) {
-            logger.warn(`[${req.id}] Unauthorized bulk task creation attempt`, {
-                projectId: feature.projectId,
-                userId: req.user.id
-            });
-
-            return res.status(verification.status).json({
-                success: false,
-                message: verification.error
-            });
-        }
-
-        // Parse Tasks
-        let lines = tasksText.split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
-
-        lines = [...new Set(lines)];
-
-        if (lines.length === 0) {
-            logger.warn(`[${req.id}] No valid tasks provided for bulk creation`);
-
-            return res.status(400).json({
-                success: false,
-                message: "No valid tasks provided",
-            });
-        }
-
-        if (lines.length > 100) {
-            logger.warn(`[${req.id}] Too many tasks in bulk request`, {
-                count: lines.length
-            });
-
-            return res.status(413).json({
-                success: false,
-                message: "Maximum 100 tasks allowed per bulk request",
-            });
-        }
-
-        // Get the last task order for this project
-        const lastTask = await Task.findOne({ projectId: feature.projectId }).sort({ order: -1 });
-        let startOrder = lastTask ? lastTask.order + 1 : 0;
-
-        if (dueDate) {
-            const selectedDate = new Date(dueDate);
-            const today = new Date();
-
-            // Reset time for accurate comparison
-            today.setHours(0, 0, 0, 0);
-
-            if (selectedDate < today) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Due date cannot be in the past',
-                });
-            }
-        }
-
-        const taskDocuments = lines.map((title, index) => ({
-            projectId: feature.projectId,
-            featureId: feature._id,
-            title,
-            description: "",
-            status: "Todo",
-            priority: "Medium",
-            order: startOrder + index,
-            dueDate: dueDate ? new Date(dueDate) : undefined
-        }));
-
-        const createdTasks = await Task.insertMany(taskDocuments);
-
-        await syncProjectAndFeatureStats({
-            projectId: feature.projectId,
-            featureId: feature._id,
-        });
-
-        logger.info(`[${req.id}] Bulk tasks created`, {
-            featureId,
-            projectId: feature.projectId,
-            count: createdTasks.length,
-            userId: req.user.id
-        });
-
-        return res.status(201).json({
-            success: true,
-            message: 'Tasks created successfully',
-            createdCount: createdTasks.length,
-            data: createdTasks,
-        });
-
-    } catch (error) {
-        logger.error(`[${req.id}] Error creating bulk tasks`, error);
-        next(error);
+    // Validate tasks array
+    if (!Array.isArray(tasks) || tasks.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No valid tasks provided",
+      });
     }
+
+    if (tasks.length > 100) {
+      return res.status(413).json({
+        success: false,
+        message: "Maximum 100 tasks allowed per bulk request",
+      });
+    }
+
+    // Verify feature exists (lean for performance)
+    const feature = await Feature.findById(featureId).lean();
+
+    if (!feature) {
+      logger.warn(`[${req.id}] Feature not found for bulk task creation`, {
+        featureId,
+      });
+
+      return res.status(404).json({
+        success: false,
+        message: "Feature not found",
+      });
+    }
+
+    // Verify project ownership
+    const verification = await verifyProjectOwnership(
+      feature.projectId,
+      req.user.id
+    );
+
+    if (verification.error) {
+      logger.warn(`[${req.id}] Unauthorized bulk task creation attempt`, {
+        projectId: feature.projectId,
+        userId: req.user.id,
+      });
+
+      return res.status(verification.status).json({
+        success: false,
+        message: verification.error,
+      });
+    }
+
+    // Get last order (scoped per feature)
+    const lastTask = await Task.findOne({
+      featureId: feature._id,
+    })
+      .sort({ order: -1 })
+      .lean();
+
+    let startOrder = lastTask ? lastTask.order + 1 : 0;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const taskDocuments = tasks.map((task, index) => {
+      if (!task.title || typeof task.title !== "string") {
+        throw new Error("Invalid task title");
+      }
+
+      let taskDueDate;
+
+      if (task.dueDate) {
+        const selectedDate = new Date(task.dueDate);
+        selectedDate.setHours(0, 0, 0, 0);
+
+        if (selectedDate < today) {
+          throw new Error("Due date cannot be in the past");
+        }
+
+        taskDueDate = selectedDate;
+      }
+
+      return {
+        projectId: feature.projectId,
+        featureId: feature._id,
+        title: task.title.trim(),
+        description: "",
+        status: "Todo",
+        priority: ["Low", "Medium", "High"].includes(task.priority)
+          ? task.priority
+          : "Medium",
+        order: startOrder + index,
+        dueDate: taskDueDate,
+      };
+    });
+
+    const createdTasks = await Task.insertMany(taskDocuments, {
+      ordered: false,
+    });
+
+    await syncProjectAndFeatureStats({
+      projectId: feature.projectId,
+      featureId: feature._id,
+    });
+
+    logger.info(`[${req.id}] Bulk tasks created`, {
+      featureId,
+      projectId: feature.projectId,
+      count: createdTasks.length,
+      userId: req.user.id,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Tasks created successfully",
+      createdCount: createdTasks.length,
+      data: createdTasks,
+    });
+  } catch (error) {
+    logger.error(`[${req.id}] Error creating bulk tasks`, error);
+
+    console.log(error);
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Error creating tasks",
+    });
+  }
 };
 
