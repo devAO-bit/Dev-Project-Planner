@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { tasksApi } from "@/services/api";
 import { toast } from "sonner";
-import type {Task, BulkCreateTaskData} from '../types'
+import type { Task } from "../types";
 
 interface BulkTaskModalProps {
   featureId: string;
@@ -17,16 +17,25 @@ export default function BulkTaskModal({
   const [dueDate, setDueDate] = useState("");
   const queryClient = useQueryClient();
 
-  const { mutate, isPending, error } = useMutation<Task[], Error, BulkCreateTaskData>({
+  const { mutate, isPending, error } = useMutation<
+    { success: boolean; createdCount: number; data: Task[] },
+    Error,
+    {
+      featureId: string;
+      tasks: {
+        title: string;
+        priority?: "Low" | "Medium" | "High";
+        dueDate?: string;
+      }[];
+    }
+  >({
     mutationFn: tasksApi.bulkCreate,
-    onSuccess: (tasks) => {
-      queryClient.invalidateQueries({ queryKey: ["tasks", featureId] });
-
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
       queryClient.invalidateQueries({ queryKey: ["features"] });
-
       queryClient.invalidateQueries({ queryKey: ["projectStats"] });
 
-      toast.success(`${tasks.length} tasks created successfully 🎉`);
+      toast.success(`${response.createdCount} tasks created successfully 🎉`);
 
       setTasksText("");
       setDueDate("");
@@ -34,74 +43,133 @@ export default function BulkTaskModal({
     },
   });
 
-  const handleSubmit = () => {
-    if (!tasksText.trim()) return;
-
-    mutate({
-      featureId,
-      tasksText,
-      dueDate: dueDate || undefined,
-    });
-  };
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
   const parsedTasks = tasksText
     .split("\n")
-    .map((t) => t.trim())
-    .filter((t) => t.length > 0);
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line) => {
+      const parts = line.split("|").map((p) => p.trim());
 
-  const taskCount = parsedTasks.length;
+      const title = parts[0];
+
+      let priority: "Low" | "Medium" | "High" = "Medium";
+      let lineDueDate: string | undefined;
+
+      if (parts[1]) {
+        const normalized = parts[1].toLowerCase();
+        if (["low", "medium", "high"].includes(normalized)) {
+          priority = (normalized.charAt(0).toUpperCase() +
+            normalized.slice(1)) as "Low" | "Medium" | "High";
+        }
+      }
+
+      if (parts[2]) {
+        lineDueDate = parts[2];
+      }
+
+      return {
+        raw: line,
+        title,
+        priority,
+        dueDate: lineDueDate || dueDate || undefined,
+        isValid: !!title,
+      };
+    });
+
+  const hasInvalidLines = parsedTasks.some((t) => !t.isValid);
+  const exceedsLimit = parsedTasks.length > 100;
+
+  const handleSubmit = () => {
+    if (!parsedTasks.length || hasInvalidLines || exceedsLimit) return;
+
+    mutate({
+      featureId,
+      tasks: parsedTasks.map((task) => ({
+        title: task.title,
+        priority: task.priority,
+        dueDate: task.dueDate,
+      })),
+    });
+  };
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white w-[520px] rounded-xl shadow-xl p-6">
         <h2 className="text-lg font-semibold mb-4">📦 Bulk Add Tasks</h2>
-
         <textarea
           value={tasksText}
           onChange={(e) => setTasksText(e.target.value)}
-          placeholder="Enter one task per line..."
+          placeholder="Task title | priority | dueDate"
           rows={8}
           className="w-full border rounded-md p-3 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          disabled={isPending || taskCount > 100}
+          disabled={isPending}
         />
+        {parsedTasks.length > 0 && (
+          <div className="mb-4 border rounded-md p-3 bg-gray-50 max-h-40 overflow-y-auto">
+            <p className="text-sm font-medium mb-2">
+              {parsedTasks.length} task
+              {parsedTasks.length > 1 ? "s" : ""} will be created:
+            </p>
 
-        {taskCount > 0 && (
-          <div className="mb-3 text-sm text-gray-600">
-            {taskCount} task{taskCount > 1 ? "s" : ""} will be created
+            <ul className="space-y-1 text-sm">
+              {parsedTasks.slice(0, 5).map((task, index) => (
+                <li key={index} className="flex justify-between">
+                  <span>{task.title}</span>
+                  <span className="text-gray-500 text-xs">{task.priority}</span>
+                </li>
+              ))}
+
+              {parsedTasks.length > 5 && (
+                <li className="text-xs text-gray-500">
+                  + {parsedTasks.length - 5} more...
+                </li>
+              )}
+            </ul>
           </div>
         )}
-
-        {taskCount > 100 && (
-          <div className="text-red-500 text-sm mb-3">
-            Maximum 100 tasks allowed
-          </div>
+        {hasInvalidLines && (
+          <p className="text-red-500 text-sm mb-2">Some lines are invalid.</p>
         )}
-
+        {exceedsLimit && (
+          <p className="text-red-500 text-sm mb-2">
+            Maximum 100 tasks allowed.
+          </p>
+        )}
+        {error && (
+          <p className="text-red-500 text-sm mb-3">
+            Something went wrong. Please try again.
+          </p>
+        )}
         <div className="mb-4">
+          {" "}
           <label className="text-sm text-gray-600 block mb-1">
-            Due Date (optional)
-          </label>
+            {" "}
+            Due Date (optional){" "}
+          </label>{" "}
           <input
             type="date"
             value={dueDate}
             min={new Date().toISOString().split("T")[0]}
             onChange={(e) => setDueDate(e.target.value)}
             className="w-full border rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          />{" "}
           {dueDate &&
             new Date(dueDate) < new Date(new Date().toDateString()) && (
               <p className="text-red-500 text-sm mt-1">
-                Due date cannot be in the past.
+                {" "}
+                Due date cannot be in the past.{" "}
               </p>
-            )}
-        </div>
-
+            )}{" "}
+        </div>{" "}
         {error && (
           <p className="text-red-500 text-sm mb-3">
-            Something went wrong. Please try again.
+            {" "}
+            Something went wrong. Please try again.{" "}
           </p>
         )}
-
         <div className="flex justify-end gap-3">
           <button
             onClick={onClose}
@@ -112,7 +180,7 @@ export default function BulkTaskModal({
 
           <button
             onClick={handleSubmit}
-            disabled={isPending}
+            disabled={isPending || hasInvalidLines || exceedsLimit}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-60"
           >
             {isPending ? "Creating..." : "Create Tasks"}

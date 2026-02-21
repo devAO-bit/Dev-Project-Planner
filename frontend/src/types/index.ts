@@ -160,11 +160,18 @@ export type UpdateTaskData = Partial<Omit<CreateTaskData, "projectId">>;
 
 export interface BulkCreateTaskData {
   featureId: string;
-  tasksText: string;
-  dueDate?: string;
+  tasks: {
+    title: string;
+    priority?: "Low" | "Medium" | "High";
+    dueDate?: string;
+  }[];
 }
 
-export type BulkCreateTaskResponse = Task[];
+export interface BulkCreateTaskResponse {
+  success: boolean;
+  createdCount: number;
+  data: Task[];
+}
 
 export interface ApiResponse<T> {
   success: boolean;

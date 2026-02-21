@@ -17,7 +17,8 @@ import type {
   UpdateTaskData,
   ProjectStats,
   DashboardStats,
-  BulkCreateTaskData
+  BulkCreateTaskData,
+  BulkCreateTaskResponse,
 } from "@/types";
 
 // Auth API
@@ -103,8 +104,8 @@ export const tasksApi = {
     apiClient.post<ApiResponse<Task>>("/tasks", data),
 
   bulkCreate: async (data: BulkCreateTaskData) => {
-  const res = await apiClient.post<ApiResponse<Task[]>>('/tasks/bulk', data);
-  return res.data.data;
+  const res = await apiClient.post<BulkCreateTaskResponse>('/tasks/bulk', data);
+  return res.data;
 },
 
   update: (id: string, data: UpdateTaskData) =>
