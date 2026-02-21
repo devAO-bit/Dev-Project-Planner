@@ -75,19 +75,31 @@ const reorderValidation = [
 ];
 
 const bulkTaskValidation = [
-    body('featureId')
-        .notEmpty().withMessage('Feature ID is required')
-        .isMongoId().withMessage('Invalid feature ID'),
+  body("featureId")
+    .notEmpty().withMessage("Feature ID is required")
+    .isMongoId().withMessage("Invalid feature ID"),
 
-    body('tasksText')
-        .notEmpty().withMessage('Tasks text is required')
-        .isString().withMessage('Tasks text must be a string')
-        .isLength({ max: 10000 }).withMessage('Tasks text cannot exceed 10000 characters'),
+  body("tasks")
+    .isArray({ min: 1 }).withMessage("At least one task is required")
+    .custom((tasks) => tasks.length <= 100)
+    .withMessage("Maximum 100 tasks allowed"),
 
-    body('dueDate')
-        .optional()
-        .isISO8601().withMessage('Invalid due date format')
+  body("tasks.*.title")
+    .notEmpty().withMessage("Task title is required")
+    .isString().withMessage("Task title must be a string")
+    .isLength({ max: 200 }).withMessage("Task title too long"),
+
+  body("tasks.*.priority")
+    .optional()
+    .isIn(["Low", "Medium", "High"])
+    .withMessage("Invalid priority value"),
+
+  body("tasks.*.dueDate")
+    .optional()
+    .isISO8601()
+    .withMessage("Invalid due date format"),
 ];
+
 
 // All routes require authentication
 router.use(protect);
