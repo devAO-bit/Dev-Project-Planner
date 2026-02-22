@@ -10,7 +10,8 @@ const {
     updateTask,
     deleteTask,
     reorderTasks,
-    bulkCreateTasks
+    bulkCreateTasks,
+    aiTaskBreakdown
 } = require('../controllers/task.controller');
 
 const router = express.Router();
@@ -107,6 +108,7 @@ router.use(protect);
 // Routes
 router.post('/', validate(taskValidation), createTask);
 router.post("/bulk", validate(bulkTaskValidation), bulkCreateTasks);
+router.post("/ai", aiTaskBreakdown);
 router.put('/reorder', validate(reorderValidation), reorderTasks);
 router.get('/project/:projectId', getTasks);
 router.get('/feature/:featureId', getTasksByFeature);

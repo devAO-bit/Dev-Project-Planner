@@ -3,6 +3,7 @@ const Project = require('../models/Project');
 const Feature = require('../models/Feature');
 const logger = require('../config/logger');
 const { syncProjectAndFeatureStats } = require("../services/stats.service");
+const { generateTaskBreakdown } = require("../services/ai.service")
 
 
 // Helper function to verify project ownership
@@ -564,3 +565,27 @@ exports.bulkCreateTasks = async (req, res, next) => {
   }
 };
 
+exports.aiTaskBreakdown = async (req, res) => {
+  try {
+    const { goal } = req.body;
+
+    if (!goal) {
+      return res.status(400).json({
+        success: false,
+        message: "Goal is required",
+      });
+    }
+
+    const tasks = await generateTaskBreakdown(goal);
+
+    return res.json({
+      success: true,
+      tasks,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
