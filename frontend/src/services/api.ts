@@ -19,6 +19,7 @@ import type {
   DashboardStats,
   BulkCreateTaskData,
   BulkCreateTaskResponse,
+  AiBreakdownResponse
 } from "@/types";
 
 // Auth API
@@ -103,9 +104,19 @@ export const tasksApi = {
   create: (data: CreateTaskData) =>
     apiClient.post<ApiResponse<Task>>("/tasks", data),
 
+  aiBreakdown: async (goal: string) => {
+    const res = await apiClient.post<AiBreakdownResponse>(
+      "/tasks/ai",
+      { goal }
+    );
+    return res.data;
+  },
+
   bulkCreate: async (data: BulkCreateTaskData) => {
   const res = await apiClient.post<BulkCreateTaskResponse>('/tasks/bulk', data);
   return res.data;
+
+  
 },
 
   update: (id: string, data: UpdateTaskData) =>

@@ -173,6 +173,15 @@ export interface BulkCreateTaskResponse {
   data: Task[];
 }
 
+export interface AiBreakdownResponse {
+  success: boolean;
+  tasks: {
+    title: string;
+    priority: "Low" | "Medium" | "High";
+  }[];
+}
+
+
 export interface ApiResponse<T> {
   success: boolean;
   message?: string;
