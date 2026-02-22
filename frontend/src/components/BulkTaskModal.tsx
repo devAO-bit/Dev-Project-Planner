@@ -1,21 +1,42 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { tasksApi } from "@/services/api";
 import { toast } from "sonner";
 import type { Task } from "../types";
+import AiTaskModal from "./AiTaskModal";
 
 interface BulkTaskModalProps {
   featureId: string;
   onClose: () => void;
+  initialTasks?: {
+    title: string;
+    priority: "Low" | "Medium" | "High";
+  }[];
 }
 
 export default function BulkTaskModal({
   featureId,
   onClose,
+  initialTasks,
 }: BulkTaskModalProps) {
   const [tasksText, setTasksText] = useState("");
   const [dueDate, setDueDate] = useState("");
   const queryClient = useQueryClient();
+
+  const [isAiOpen, setIsAiOpen] = useState(false);
+  const [aiTasks, setAiTasks] = useState<
+    { title: string; priority: "Low" | "Medium" | "High" }[]
+  >([]);
+
+  useEffect(() => {
+    if (initialTasks?.length) {
+      const formatted = initialTasks
+        .map((t) => `${t.title} | ${t.priority}`)
+        .join("\n");
+
+      setTasksText(formatted);
+    }
+  }, [initialTasks]);
 
   const { mutate, isPending, error } = useMutation<
     { success: boolean; createdCount: number; data: Task[] },
@@ -171,6 +192,28 @@ export default function BulkTaskModal({
           </p>
         )}
         <div className="flex justify-end gap-3">
+          <button
+            onClick={() => setIsAiOpen(true)}
+            className="px-3 py-2 bg-purple-600 text-white rounded-md"
+          >
+            🤖 AI Generate
+          </button>
+
+          {isAiOpen && (
+            <AiTaskModal
+              featureId={featureId}
+              onClose={() => setIsAiOpen(false)}
+              onTasksGenerated={(tasks) => {
+                const formatted = tasks
+                  .map((task) => `${task.title} | ${task.priority}`)
+                  .join("\n");
+
+                setTasksText(formatted);
+                setIsAiOpen(false); // close AI modal
+              }}
+            />
+          )}
+
           <button
             onClick={onClose}
             className="px-4 py-2 border rounded-md hover:bg-gray-100"
