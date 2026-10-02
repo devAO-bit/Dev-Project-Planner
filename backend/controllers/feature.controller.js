@@ -2,6 +2,12 @@ const Feature = require('../models/Feature');
 const Project = require('../models/Project');
 const Task = require('../models/Task');
 const logger = require("../config/logger");
+const pickFields = require('../utils/pickFields');
+
+// Client-editable feature fields. projectId (relationship), taskCount,
+// completedTaskCount, progress and order are server-controlled. Ordering is
+// only changed through the dedicated reorder endpoint.
+const FEATURE_FIELDS = ['name', 'description', 'type', 'priority', 'status'];
 
 // Helper function to verify project ownership
 const verifyProjectOwnership = async (projectId, userId) => {
@@ -136,9 +142,11 @@ exports.createFeature = async (req, res, next) => {
         const lastFeature = await Feature.findOne({ projectId })
             .sort({ order: -1 });
 
-        req.body.order = lastFeature ? lastFeature.order + 1 : 0;
-
-        const feature = await Feature.create(req.body);
+        const feature = await Feature.create({
+            ...pickFields(req.body, FEATURE_FIELDS),
+            projectId,
+            order: lastFeature ? lastFeature.order + 1 : 0
+        });
 
         logger.info(`[${req.id}] Feature created`, {
             featureId: feature._id,
@@ -191,9 +199,26 @@ exports.updateFeature = async (req, res, next) => {
             });
         }
 
+        // A feature cannot be moved to another project
+        if (
+            req.body.projectId !== undefined &&
+            String(req.body.projectId) !== feature.projectId._id.toString()
+        ) {
+            logger.warn(`[${req.id}] Attempt to move feature to another project`, {
+                featureId: feature._id,
+                projectId: feature.projectId._id,
+                userId: req.user.id
+            });
+
+            return res.status(400).json({
+                success: false,
+                message: 'Feature cannot be moved to another project'
+            });
+        }
+
         feature = await Feature.findByIdAndUpdate(
             req.params.id,
-            req.body,
+            pickFields(req.body, FEATURE_FIELDS),
             {
                 new: true,
                 runValidators: true

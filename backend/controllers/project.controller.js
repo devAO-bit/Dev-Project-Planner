@@ -2,6 +2,12 @@ const Project = require('../models/Project');
 const Feature = require('../models/Feature');
 const Task = require('../models/Task');
 const logger = require('../config/logger');
+const pickFields = require('../utils/pickFields');
+
+// Client-editable project fields. Ownership (userId), progress, stats and
+// timestamps are server-controlled and must never be taken from a request body.
+const PROJECT_CREATE_FIELDS = ['name', 'description', 'category', 'targetTimeline', 'difficulty', 'status'];
+const PROJECT_UPDATE_FIELDS = [...PROJECT_CREATE_FIELDS, 'endDate'];
 
 // @desc    Get all projects for logged in user
 // @route   GET /api/projects
@@ -95,9 +101,10 @@ exports.getProject = async (req, res, next) => {
 // @access  Private
 exports.createProject = async (req, res, next) => {
     try {
-        req.body.userId = req.user.id;
-
-        const project = await Project.create(req.body);
+        const project = await Project.create({
+            ...pickFields(req.body, PROJECT_CREATE_FIELDS),
+            userId: req.user.id
+        });
 
         logger.info(`[${req.id}] Project created`, {
             projectId: project._id,
@@ -146,9 +153,27 @@ exports.updateProject = async (req, res, next) => {
             });
         }
 
+        // Ownership cannot be transferred through the update endpoint
+        if (
+            req.body.userId !== undefined &&
+            String(req.body.userId) !== project.userId.toString()
+        ) {
+            logger.warn(`[${req.id}] Attempt to change project owner`, {
+                projectId: project._id,
+                userId: req.user.id
+            });
+
+            return res.status(400).json({
+                success: false,
+                message: 'Project ownership cannot be changed'
+            });
+        }
+
+        const updates = pickFields(req.body, PROJECT_UPDATE_FIELDS);
+
         project = await Project.findByIdAndUpdate(
             req.params.id,
-            req.body,
+            updates,
             {
                 new: true,
                 runValidators: true
@@ -158,7 +183,7 @@ exports.updateProject = async (req, res, next) => {
         logger.info(`[${req.id}] Project updated`, {
             projectId: project._id,
             userId: req.user.id,
-            updatedFields: Object.keys(req.body)
+            updatedFields: Object.keys(updates)
         });
 
         return res.status(200).json({
