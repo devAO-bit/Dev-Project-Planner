@@ -92,11 +92,17 @@ projectSchema.virtual('tasks', {
     foreignField: 'projectId'
 });
 
+// Business rule: endDate = startDate + targetTimeline (weeks).
+// Shared by the pre-save hook and by update paths that bypass it (findByIdAndUpdate).
+projectSchema.statics.calculateEndDate = function (startDate, targetTimeline) {
+    const start = new Date(startDate);
+    return new Date(start.setDate(start.getDate() + (targetTimeline * 7)));
+};
+
 // Calculate end date based on start date and timeline
 projectSchema.pre('save', function (next) {
     if (this.isModified('startDate') || this.isModified('targetTimeline')) {
-        const startDate = new Date(this.startDate);
-        this.endDate = new Date(startDate.setDate(startDate.getDate() + (this.targetTimeline * 7)));
+        this.endDate = this.constructor.calculateEndDate(this.startDate, this.targetTimeline);
     }
     next();
 });

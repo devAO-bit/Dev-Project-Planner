@@ -7,7 +7,9 @@ const pickFields = require('../utils/pickFields');
 // Client-editable project fields. Ownership (userId), progress, stats and
 // timestamps are server-controlled and must never be taken from a request body.
 const PROJECT_CREATE_FIELDS = ['name', 'description', 'category', 'targetTimeline', 'difficulty', 'status'];
-const PROJECT_UPDATE_FIELDS = [...PROJECT_CREATE_FIELDS, 'endDate'];
+// endDate is derived from startDate + targetTimeline (see Project.calculateEndDate), so it is
+// not client-editable.
+const PROJECT_UPDATE_FIELDS = PROJECT_CREATE_FIELDS;
 
 // @desc    Get all projects for logged in user
 // @route   GET /api/projects
@@ -170,6 +172,11 @@ exports.updateProject = async (req, res, next) => {
         }
 
         const updates = pickFields(req.body, PROJECT_UPDATE_FIELDS);
+
+        // findByIdAndUpdate bypasses the Project pre('save') date rule, so apply it here
+        if (updates.targetTimeline !== undefined && project.startDate) {
+            updates.endDate = Project.calculateEndDate(project.startDate, updates.targetTimeline);
+        }
 
         project = await Project.findByIdAndUpdate(
             req.params.id,

@@ -3,6 +3,7 @@ const Project = require('../models/Project');
 const Task = require('../models/Task');
 const logger = require("../config/logger");
 const pickFields = require('../utils/pickFields');
+const syncProjectStats = require('../utils/syncProjectStats');
 
 // Client-editable feature fields. projectId (relationship), taskCount,
 // completedTaskCount, progress and order are server-controlled. Ordering is
@@ -225,6 +226,9 @@ exports.updateFeature = async (req, res, next) => {
             }
         );
 
+        // findByIdAndUpdate fires no Feature hook; keep project feature counters in sync
+        await syncProjectStats(feature.projectId);
+
         logger.info(`[${req.id}] Feature updated`, {
             featureId: feature._id,
             projectId: feature.projectId,
@@ -278,6 +282,9 @@ exports.deleteFeature = async (req, res, next) => {
         // Delete all tasks associated with this feature
         await Task.deleteMany({ featureId: req.params.id });
         await Feature.findByIdAndDelete(req.params.id);
+
+        // deleteMany bypasses the Task hooks; recalculate project counters and progress
+        await syncProjectStats(feature.projectId._id);
 
         logger.info(`[${req.id}] Feature deleted`, {
             featureId: feature._id,

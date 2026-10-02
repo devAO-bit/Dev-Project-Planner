@@ -306,11 +306,24 @@ exports.updateTask = async (req, res, next) => {
             }
         }
 
+        const projectId = task.projectId._id;
+        const previousFeatureId = task.featureId ? task.featureId.toString() : null;
+
         task = await Task.findByIdAndUpdate(
             req.params.id,
             pickFields(req.body, TASK_FIELDS),
             { new: true, runValidators: true }
         ).populate('featureId', 'name type');
+
+        // The post-update hook only refreshes the task's current feature; if the task moved,
+        // refresh the feature it left as well.
+        const currentFeatureId = task.featureId
+            ? (task.featureId._id || task.featureId).toString()
+            : null;
+
+        if (previousFeatureId && previousFeatureId !== currentFeatureId) {
+            await Task.recalculateStats({ projectId, featureId: previousFeatureId });
+        }
 
         logger.info(`[${req.id}] Task updated`, {
             taskId: task._id,

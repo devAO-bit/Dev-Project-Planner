@@ -145,7 +145,7 @@ describe('P1 security hardening: client-controlled fields', () => {
         });
 
         test('legitimate project fields still update', async () => {
-            const endDate = '2030-01-01T00:00:00.000Z';
+            const before = await Project.findById(aliceProject._id).lean();
 
             const response = await request(app)
                 .put(`/api/projects/${aliceProject._id}`)
@@ -156,8 +156,7 @@ describe('P1 security hardening: client-controlled fields', () => {
                     category: 'API',
                     difficulty: 'Hard',
                     targetTimeline: 8,
-                    status: 'On Hold',
-                    endDate
+                    status: 'On Hold'
                 });
 
             expect(response.status).toBe(200);
@@ -169,7 +168,10 @@ describe('P1 security hardening: client-controlled fields', () => {
             expect(stored.difficulty).toBe('Hard');
             expect(stored.targetTimeline).toBe(8);
             expect(stored.status).toBe('On Hold');
-            expect(stored.endDate.toISOString()).toBe(endDate);
+            // endDate is derived from startDate + targetTimeline (see stats-integrity tests)
+            expect(stored.endDate.toISOString()).toBe(
+                Project.calculateEndDate(before.startDate, 8).toISOString()
+            );
             expect(id(stored.userId)).toBe(id(alice.user._id));
         });
 
