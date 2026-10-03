@@ -73,6 +73,13 @@ taskSchema.statics.getFeatureTasks = async function (featureId) {
         .select('-__v');
 };
 
+// Recalculate project (and feature, if given) stats from persisted documents.
+// `ref` is { projectId, featureId? }. Used by update paths that move a task away from a
+// feature, where the post-update hook only refreshes the destination side.
+taskSchema.statics.recalculateStats = function (ref) {
+    return updateRelatedStats(ref);
+};
+
 // Helper function to update all related stats
 async function updateRelatedStats(taskDoc) {
     const Project = mongoose.model('Project');

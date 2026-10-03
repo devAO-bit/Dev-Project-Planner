@@ -2,6 +2,12 @@ const Task = require('../models/Task');
 const Project = require('../models/Project');
 const Feature = require('../models/Feature');
 const logger = require('../config/logger');
+const pickFields = require('../utils/pickFields');
+
+// Client-editable task fields. projectId (relationship) and order are
+// server-controlled; ordering is only changed through the reorder endpoint.
+// featureId may be set/changed, but only to a feature of the task's own project.
+const TASK_FIELDS = ['featureId', 'title', 'description', 'status', 'priority', 'dueDate'];
 
 // Helper function to verify project ownership
 const verifyProjectOwnership = async (projectId, userId) => {
@@ -207,9 +213,11 @@ exports.createTask = async (req, res, next) => {
         }
 
         const lastTask = await Task.findOne({ projectId }).sort({ order: -1 });
-        req.body.order = lastTask ? lastTask.order + 1 : 0;
-
-        const task = await Task.create(req.body);
+        const task = await Task.create({
+            ...pickFields(req.body, TASK_FIELDS),
+            projectId,
+            order: lastTask ? lastTask.order + 1 : 0
+        });
         await task.populate('featureId', 'name type');
 
         logger.info(`[${req.id}] Task created`, {
@@ -261,6 +269,23 @@ exports.updateTask = async (req, res, next) => {
             });
         }
 
+        // A task cannot be moved to another project
+        if (
+            req.body.projectId !== undefined &&
+            String(req.body.projectId) !== task.projectId._id.toString()
+        ) {
+            logger.warn(`[${req.id}] Attempt to move task to another project`, {
+                taskId: task._id,
+                projectId: task.projectId._id,
+                userId: req.user.id
+            });
+
+            return res.status(400).json({
+                success: false,
+                message: 'Task cannot be moved to another project'
+            });
+        }
+
         // Verify updated feature belongs to same project
         if (req.body.featureId) {
             const feature = await Feature.findOne({
@@ -281,11 +306,24 @@ exports.updateTask = async (req, res, next) => {
             }
         }
 
+        const projectId = task.projectId._id;
+        const previousFeatureId = task.featureId ? task.featureId.toString() : null;
+
         task = await Task.findByIdAndUpdate(
             req.params.id,
-            req.body,
+            pickFields(req.body, TASK_FIELDS),
             { new: true, runValidators: true }
         ).populate('featureId', 'name type');
+
+        // The post-update hook only refreshes the task's current feature; if the task moved,
+        // refresh the feature it left as well.
+        const currentFeatureId = task.featureId
+            ? (task.featureId._id || task.featureId).toString()
+            : null;
+
+        if (previousFeatureId && previousFeatureId !== currentFeatureId) {
+            await Task.recalculateStats({ projectId, featureId: previousFeatureId });
+        }
 
         logger.info(`[${req.id}] Task updated`, {
             taskId: task._id,
