@@ -107,6 +107,9 @@ projectSchema.pre('save', function (next) {
     next();
 });
 
+// Statuses chosen explicitly by the user; task progress must not overwrite them
+const MANUAL_STATUSES = ['On Hold', 'Cancelled'];
+
 // Method to update progress
 projectSchema.methods.updateProgress = function () {
     if (this.stats.totalTasks > 0) {
@@ -117,7 +120,13 @@ projectSchema.methods.updateProgress = function () {
         this.progress = 0;
     }
 
-    // ✅ AUTO-UPDATE STATUS
+    // Manual lifecycle states are never derived from task progress.
+    // Progress above is still recalculated for them.
+    if (MANUAL_STATUSES.includes(this.status)) {
+        return;
+    }
+
+    // Derived states: Planning / In Progress / Completed
     if (this.progress === 100 && this.stats.totalTasks > 0) {
         this.status = 'Completed';
     } else if (this.progress > 0) {
