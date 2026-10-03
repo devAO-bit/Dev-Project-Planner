@@ -27,7 +27,7 @@ export default function TasksPage() {
   const queryClient = useQueryClient();
 
   const [searchParams] = useSearchParams();
-  const featureIdFromUrl = searchParams.get("featureId");
+  const featureIdFromUrl = searchParams.get("featureId") ?? undefined;
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -317,6 +317,7 @@ export default function TasksPage() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         projectId={projectId!}
+        preselectedFeatureId={featureIdFromUrl}
       />
 
       <TaskViewModal

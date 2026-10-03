@@ -3,6 +3,8 @@ const Project = require('../models/Project');
 const Feature = require('../models/Feature');
 const logger = require('../config/logger');
 const pickFields = require('../utils/pickFields');
+const { syncProjectAndFeatureStats } = require("../services/stats.service");
+const { generateTaskBreakdown } = require("../services/ai.service")
 
 // Client-editable task fields. projectId (relationship) and order are
 // server-controlled; ordering is only changed through the reorder endpoint.
@@ -238,9 +240,6 @@ exports.createTask = async (req, res, next) => {
     }
 };
 
-// @desc    Update task
-// @route   PUT /api/tasks/:id
-// @access  Private
 exports.updateTask = async (req, res, next) => {
     try {
         let task = await Task.findById(req.params.id)
@@ -445,3 +444,156 @@ exports.reorderTasks = async (req, res, next) => {
     }
 };
 
+
+exports.bulkCreateTasks = async (req, res, next) => {
+  try {
+    const { featureId, tasks } = req.body;
+
+    // Validate tasks array
+    if (!Array.isArray(tasks) || tasks.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No valid tasks provided",
+      });
+    }
+
+    if (tasks.length > 100) {
+      return res.status(413).json({
+        success: false,
+        message: "Maximum 100 tasks allowed per bulk request",
+      });
+    }
+
+    // Verify feature exists (lean for performance)
+    const feature = await Feature.findById(featureId).lean();
+
+    if (!feature) {
+      logger.warn(`[${req.id}] Feature not found for bulk task creation`, {
+        featureId,
+      });
+
+      return res.status(404).json({
+        success: false,
+        message: "Feature not found",
+      });
+    }
+
+    // Verify project ownership
+    const verification = await verifyProjectOwnership(
+      feature.projectId,
+      req.user.id
+    );
+
+    if (verification.error) {
+      logger.warn(`[${req.id}] Unauthorized bulk task creation attempt`, {
+        projectId: feature.projectId,
+        userId: req.user.id,
+      });
+
+      return res.status(verification.status).json({
+        success: false,
+        message: verification.error,
+      });
+    }
+
+    // Get last order (scoped per feature)
+    const lastTask = await Task.findOne({
+      featureId: feature._id,
+    })
+      .sort({ order: -1 })
+      .lean();
+
+    let startOrder = lastTask ? lastTask.order + 1 : 0;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const taskDocuments = tasks.map((task, index) => {
+      if (!task.title || typeof task.title !== "string") {
+        throw new Error("Invalid task title");
+      }
+
+      let taskDueDate;
+
+      if (task.dueDate) {
+        const selectedDate = new Date(task.dueDate);
+        selectedDate.setHours(0, 0, 0, 0);
+
+        if (selectedDate < today) {
+          throw new Error("Due date cannot be in the past");
+        }
+
+        taskDueDate = selectedDate;
+      }
+
+      return {
+        projectId: feature.projectId,
+        featureId: feature._id,
+        title: task.title.trim(),
+        description: "",
+        status: "Todo",
+        priority: ["Low", "Medium", "High"].includes(task.priority)
+          ? task.priority
+          : "Medium",
+        order: startOrder + index,
+        dueDate: taskDueDate,
+      };
+    });
+
+    const createdTasks = await Task.insertMany(taskDocuments, {
+      ordered: false,
+    });
+
+    await syncProjectAndFeatureStats({
+      projectId: feature.projectId,
+      featureId: feature._id,
+    });
+
+    logger.info(`[${req.id}] Bulk tasks created`, {
+      featureId,
+      projectId: feature.projectId,
+      count: createdTasks.length,
+      userId: req.user.id,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Tasks created successfully",
+      createdCount: createdTasks.length,
+      data: createdTasks,
+    });
+  } catch (error) {
+    logger.error(`[${req.id}] Error creating bulk tasks`, error);
+
+    console.log(error);
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Error creating tasks",
+    });
+  }
+};
+
+exports.aiTaskBreakdown = async (req, res) => {
+  try {
+    const { goal } = req.body;
+
+    if (!goal) {
+      return res.status(400).json({
+        success: false,
+        message: "Goal is required",
+      });
+    }
+
+    const tasks = await generateTaskBreakdown(goal);
+
+    return res.json({
+      success: true,
+      tasks,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};

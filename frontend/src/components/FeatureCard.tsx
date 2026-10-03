@@ -1,8 +1,14 @@
 // src/components/FeatureCard.tsx
-import type { Feature } from '@/types';
-import { getStatusColor, getPriorityColor, getFeatureTypeColor } from '@/lib/utils';
-import { Edit, Trash2, ListTodo } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useState } from "react";
+import type { Feature } from "@/types";
+import {
+  getStatusColor,
+  getPriorityColor,
+  getFeatureTypeColor,
+} from "@/lib/utils";
+import { Edit, Trash2, ListTodo, Layers } from "lucide-react";
+import { Link } from "react-router-dom";
+import BulkTaskModal from "../components/BulkTaskModal";
 
 interface FeatureCardProps {
   feature: Feature;
@@ -11,13 +17,24 @@ interface FeatureCardProps {
   projectId: string;
 }
 
-export default function FeatureCard({ feature, onEdit, onDelete, projectId }: FeatureCardProps) {
+export default function FeatureCard({
+  feature,
+  onEdit,
+  onDelete,
+  projectId,
+}: FeatureCardProps) {
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm(`Delete "${feature.name}"? This will also delete all associated tasks.`)) {
+    if (
+      window.confirm(
+        `Delete "${feature.name}"? This will also delete all associated tasks.`,
+      )
+    ) {
       onDelete(feature);
     }
   };
+
+  const [isBulkOpen, setIsBulkOpen] = useState(false);
 
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -34,14 +51,23 @@ export default function FeatureCard({ feature, onEdit, onDelete, projectId }: Fe
               {feature.name}
             </h3>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className={`px-2 py-1 text-xs font-medium rounded-full ${getFeatureTypeColor(feature.type)}`}>
-                {feature.type === 'nice-to-have' ? 'Nice to Have' : 
-                 feature.type === 'stretch' ? 'Stretch Goal' : 'Core'}
+              <span
+                className={`px-2 py-1 text-xs font-medium rounded-full ${getFeatureTypeColor(feature.type)}`}
+              >
+                {feature.type === "nice-to-have"
+                  ? "Nice to Have"
+                  : feature.type === "stretch"
+                    ? "Stretch Goal"
+                    : "Core"}
               </span>
-              <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(feature.status)}`}>
+              <span
+                className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(feature.status)}`}
+              >
                 {feature.status}
               </span>
-              <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(feature.priority)}`}>
+              <span
+                className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(feature.priority)}`}
+              >
                 {feature.priority}
               </span>
             </div>
@@ -57,7 +83,9 @@ export default function FeatureCard({ feature, onEdit, onDelete, projectId }: Fe
         <div className="space-y-2 mb-4">
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-600">Progress</span>
-            <span className="font-medium text-gray-900">{feature.progress}%</span>
+            <span className="font-medium text-gray-900">
+              {feature.progress}%
+            </span>
           </div>
           <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
             <div
@@ -80,6 +108,17 @@ export default function FeatureCard({ feature, onEdit, onDelete, projectId }: Fe
 
         {/* Actions */}
         <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsBulkOpen(true);
+            }}
+            className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+            title="Bulk add tasks"
+          >
+            <Layers className="w-4 h-4" />
+          </button>
+
           <Link
             to={`/projects/${projectId}/tasks?featureId=${feature._id}`}
             className="p-2 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition"
@@ -88,6 +127,7 @@ export default function FeatureCard({ feature, onEdit, onDelete, projectId }: Fe
           >
             <ListTodo className="w-4 h-4" />
           </Link>
+
           <button
             onClick={handleEdit}
             className="p-2 text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition"
@@ -95,6 +135,7 @@ export default function FeatureCard({ feature, onEdit, onDelete, projectId }: Fe
           >
             <Edit className="w-4 h-4" />
           </button>
+
           <button
             onClick={handleDelete}
             className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
@@ -104,6 +145,12 @@ export default function FeatureCard({ feature, onEdit, onDelete, projectId }: Fe
           </button>
         </div>
       </div>
+      {isBulkOpen && (
+        <BulkTaskModal
+          featureId={feature._id}
+          onClose={() => setIsBulkOpen(false)}
+        />
+      )}
     </div>
   );
 }

@@ -158,6 +158,30 @@ export interface CreateTaskData {
 
 export type UpdateTaskData = Partial<Omit<CreateTaskData, "projectId">>;
 
+export interface BulkCreateTaskData {
+  featureId: string;
+  tasks: {
+    title: string;
+    priority?: "Low" | "Medium" | "High";
+    dueDate?: string;
+  }[];
+}
+
+export interface BulkCreateTaskResponse {
+  success: boolean;
+  createdCount: number;
+  data: Task[];
+}
+
+export interface AiBreakdownResponse {
+  success: boolean;
+  tasks: {
+    title: string;
+    priority: "Low" | "Medium" | "High";
+  }[];
+}
+
+
 export interface ApiResponse<T> {
   success: boolean;
   message?: string;

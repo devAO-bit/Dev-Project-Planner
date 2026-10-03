@@ -1,5 +1,6 @@
 // src/components/CreateTaskModal.tsx
 import { useForm } from 'react-hook-form';
+import { useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -49,10 +50,21 @@ export default function CreateTaskModal({
   } = useForm<TaskFormData>({
     resolver: zodResolver(taskSchema),
     defaultValues: {
-      priority: 'Medium',
-      featureId: preselectedFeatureId || '',
+      priority: 'Medium'
     },
   });
+
+  useEffect(() => {
+  if (isOpen) {
+    reset({
+      title: '',
+      description: '',
+      priority: 'Medium',
+      featureId: preselectedFeatureId || '',
+      dueDate: '',
+    });
+  }
+}, [isOpen, preselectedFeatureId, reset]);
 
   const createMutation = useMutation({
     mutationFn: (data: TaskFormData) => {
@@ -146,6 +158,7 @@ export default function CreateTaskModal({
                 <select
                   {...register('featureId')}
                   id="featureId"
+                  disabled={!!preselectedFeatureId}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition"
                 >
                   <option value="">No feature (standalone task)</option>
