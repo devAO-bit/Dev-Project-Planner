@@ -12,6 +12,16 @@ const validateEnv = require('./config/env.validator');
 validateEnv();
 
 /**
+ * Optional DNS override for resolving mongodb+srv:// hosts on machines where
+ * Node's resolver cannot reach the system DNS (querySrv ECONNREFUSED)
+ */
+if (process.env.DNS_SERVERS) {
+    require('dns').setServers(
+        process.env.DNS_SERVERS.split(',').map(s => s.trim()).filter(Boolean)
+    );
+}
+
+/**
  * MongoDB connection with retry logic
  */
 const connectDB = async () => {
