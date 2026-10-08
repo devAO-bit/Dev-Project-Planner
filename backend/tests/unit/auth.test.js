@@ -105,3 +105,46 @@ describe('Auth API', () => {
         });
     });
 });
+
+describe('protect() JWT verification', () => {
+    const jwt = require('jsonwebtoken');
+
+    const makeUser = async () => User.create({
+        name: 'Jwt User',
+        email: 'jwt@example.com',
+        password: 'password123'
+    });
+    const call = (token) =>
+        request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`);
+
+    it('accepts an HS256 token', async () => {
+        const user = await makeUser();
+        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { algorithm: 'HS256', expiresIn: '1h' });
+        await call(token).expect(200);
+    });
+
+    it('rejects a token signed with a different algorithm (HS512)', async () => {
+        const user = await makeUser();
+        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { algorithm: 'HS512', expiresIn: '1h' });
+        await call(token).expect(401);
+    });
+
+    it('rejects an expired token', async () => {
+        const user = await makeUser();
+        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: -10 });
+        await call(token).expect(401);
+    });
+
+    it('rejects a tampered token', async () => {
+        const user = await makeUser();
+        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        await call(token.slice(0, -2) + 'xx').expect(401);
+    });
+
+    it('rejects a token for an inactive user', async () => {
+        const user = await makeUser();
+        await User.updateOne({ _id: user._id }, { isActive: false });
+        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        await call(token).expect(401);
+    });
+});

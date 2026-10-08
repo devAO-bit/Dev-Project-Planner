@@ -1,6 +1,10 @@
 import axios, { AxiosError } from 'axios';
 import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import type { ApiError } from '@/types';
+import { useAuthStore } from '@/store/authStore';
+
+// Endpoints where a 401 is an expected credential error, not an expired session
+const AUTH_ENDPOINTS = ['/auth/login', '/auth/register', '/auth/updatepassword'];
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -23,7 +27,7 @@ class ApiClient {
     // Request interceptor - add auth token
     this.client.interceptors.request.use(
       (config: InternalAxiosRequestConfig) => {
-        const token = localStorage.getItem('token');
+        const token = useAuthStore.getState().token;
         if (token && config.headers) {
           config.headers.Authorization = `Bearer ${token}`;
         }
@@ -40,9 +44,14 @@ class ApiClient {
       (error: AxiosError<ApiError>) => {
         if (error.response) {
           // Handle 401 - Unauthorized
-          if (error.response?.status === 401) {
-            localStorage.clear();;
-            window.location.href = '/login';
+          if (
+            error.response.status === 401 &&
+            !AUTH_ENDPOINTS.includes(error.config?.url ?? '')
+          ) {
+            useAuthStore.getState().logout();
+            if (window.location.pathname !== '/login') {
+              window.location.href = '/login';
+            }
           }
 
           // Return formatted error

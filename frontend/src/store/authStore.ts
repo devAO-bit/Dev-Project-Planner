@@ -2,6 +2,12 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User } from '@/types';
 
+// Legacy keys from before the JWT was kept only in the persisted 'auth-storage' entry.
+const clearLegacyAuthKeys = () => {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+};
+
 interface AuthState {
   user: User | null;
   token: string | null;
@@ -19,19 +25,16 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
 
       setAuth: (user, token) => {
-        localStorage.setItem('token', token);
-        localStorage.setItem('user', JSON.stringify(user));
+        clearLegacyAuthKeys();
         set({ user, token, isAuthenticated: true });
       },
 
       logout: () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        clearLegacyAuthKeys();
         set({ user: null, token: null, isAuthenticated: false });
       },
 
       updateUser: (user) => {
-        localStorage.setItem('user', JSON.stringify(user));
         set({ user });
       },
     }),
