@@ -34,6 +34,11 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    // Incremented on password change; JWTs carry it as `tv` and must match.
+    tokenVersion: {
+        type: Number,
+        default: 0
+    },
     lastLogin: {
         type: Date
     },
@@ -77,6 +82,7 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 userSchema.methods.toJSON = function () {
     const user = this.toObject();
     delete user.password;
+    delete user.tokenVersion;
     delete user.__v;
     return user;
 };

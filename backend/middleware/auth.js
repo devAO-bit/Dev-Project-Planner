@@ -42,6 +42,14 @@ exports.protect = async (req, res, next) => {
                 });
             }
 
+            // Token must carry the user's current token version (legacy tokens = 0)
+            if ((decoded.tv ?? 0) !== (user.tokenVersion ?? 0)) {
+                return res.status(401).json({
+                    success: false,
+                    message: 'Invalid or expired token'
+                });
+            }
+
             // Attach user to request
             req.user = user;
             next();

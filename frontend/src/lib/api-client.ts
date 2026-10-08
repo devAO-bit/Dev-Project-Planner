@@ -4,7 +4,7 @@ import type { ApiError } from '@/types';
 import { useAuthStore } from '@/store/authStore';
 
 // Endpoints where a 401 is an expected credential error, not an expired session
-const AUTH_ENDPOINTS = ['/auth/login', '/auth/register', '/auth/updatepassword'];
+const AUTH_ENDPOINTS = ['/auth/login', '/auth/register'];
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -44,13 +44,32 @@ class ApiClient {
       (error: AxiosError<ApiError>) => {
         if (error.response) {
           // Handle 401 - Unauthorized
+          const config = error.config as
+            | (InternalAxiosRequestConfig & { _retried?: boolean })
+            | undefined;
           if (
             error.response.status === 401 &&
-            !AUTH_ENDPOINTS.includes(error.config?.url ?? '')
+            config &&
+            !AUTH_ENDPOINTS.includes(config.url ?? '')
           ) {
-            useAuthStore.getState().logout();
-            if (window.location.pathname !== '/login') {
-              window.location.href = '/login';
+            // Pick up any newer auth state written by another tab first
+            useAuthStore.persist.rehydrate();
+            const sentToken = String(config.headers?.Authorization ?? '').replace('Bearer ', '');
+            const currentToken = useAuthStore.getState().token;
+
+            if (currentToken && currentToken !== sentToken) {
+              // Another tab replaced the token: don't log the newer session out.
+              // Retry once with the newer token.
+              if (!config._retried) {
+                config._retried = true;
+                config.headers.Authorization = `Bearer ${currentToken}`;
+                return this.client.request(config);
+              }
+            } else {
+              useAuthStore.getState().logout();
+              if (window.location.pathname !== '/login') {
+                window.location.href = '/login';
+              }
             }
           }
 

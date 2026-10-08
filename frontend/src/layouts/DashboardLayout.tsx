@@ -71,7 +71,10 @@ export default function DashboardLayout() {
 
           {/* User Card */}
           <div className="p-4 border-t border-gray-200">
-            <div className="flex items-center gap-3 rounded-xl bg-gray-50 p-3">
+            <Link
+              to="/settings"
+              className="flex items-center gap-3 rounded-xl bg-gray-50 p-3 hover:bg-gray-100 transition"
+            >
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-600 text-white font-semibold">
                 {user && getInitials(user.name)}
               </div>
@@ -83,7 +86,7 @@ export default function DashboardLayout() {
                   {user?.email}
                 </p>
               </div>
-            </div>
+            </Link>
 
             <button
               onClick={handleLogout}
@@ -152,9 +155,23 @@ export default function DashboardLayout() {
               })}
             </nav>
 
+            <Link
+              to="/settings"
+              onClick={() => setMobileMenuOpen(false)}
+              className="mt-6 flex items-center gap-3 rounded-xl bg-gray-50 p-3 hover:bg-gray-100"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-600 text-white font-semibold">
+                {user && getInitials(user.name)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-900 truncate">{user?.name}</p>
+                <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+              </div>
+            </Link>
+
             <button
               onClick={handleLogout}
-              className="mt-6 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50"
+              className="mt-3 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50"
             >
               <LogOut className="h-5 w-5" />
               Logout

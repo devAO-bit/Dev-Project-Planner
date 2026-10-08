@@ -3,8 +3,8 @@ const User = require('../models/User');
 const logger = require('../config/logger');
 
 // Generate JWT Token
-const generateToken = (id) => {
-    return jwt.sign({ id }, process.env.JWT_SECRET, {
+const generateToken = (user, tokenVersion = user.tokenVersion) => {
+    return jwt.sign({ id: user._id, tv: tokenVersion ?? 0 }, process.env.JWT_SECRET, {
         expiresIn: process.env.JWT_EXPIRE || '7d'
     });
 };
@@ -41,7 +41,7 @@ exports.register = async (req, res, next) => {
 
 
         // Generate token
-        const token = generateToken(user._id);
+        const token = generateToken(user);
 
         return res.status(201).json({
             success: true,
@@ -119,7 +119,7 @@ exports.login = async (req, res, next) => {
         await user.save();
 
         // Generate token
-        const token = generateToken(user._id);
+        const token = generateToken(user);
 
         logger.info(`[${req.id}] Login successful for user: ${user._id}`);
 
@@ -268,21 +268,27 @@ exports.updatePassword = async (req, res, next) => {
                 userId: user._id
             });
 
-            return res.status(401).json({
+            return res.status(400).json({
                 success: false,
                 message: 'Current password is incorrect'
             });
         }
 
+        // Atomic increment (applied as $inc on save) so concurrent changes can't
+        // both write the same version; the save still runs the bcrypt pre-save hook.
         user.password = newPassword;
+        user.$inc('tokenVersion', 1);
         await user.save();
+
+        // Sign with the version actually persisted, not the in-memory guess
+        const persisted = await User.findById(user._id).select('tokenVersion').lean();
 
         logger.info(`[${req.id}] Password updated successfully`, {
             userId: user._id
         });
 
-        // Generate new token
-        const token = generateToken(user._id);
+        // Generate new token (old tokens carry a lower version and are now rejected)
+        const token = generateToken(user, persisted.tokenVersion);
 
         return res.status(200).json({
             success: true,

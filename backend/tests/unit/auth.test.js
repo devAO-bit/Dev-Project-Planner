@@ -148,3 +148,111 @@ describe('protect() JWT verification', () => {
         await call(token).expect(401);
     });
 });
+
+describe('tokenVersion invalidation', () => {
+    const jwt = require('jsonwebtoken');
+
+    const register = async (email = 'tv@example.com') => {
+        const res = await request(app)
+            .post('/api/auth/register')
+            .send({ name: 'Tv User', email, password: 'password123' })
+            .expect(201);
+        return res.body.data;
+    };
+    const sign = (id, claims = {}) =>
+        jwt.sign({ id, ...claims }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const me = (token) =>
+        request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`);
+    const changePassword = (token, currentPassword, newPassword = 'newpassword456') =>
+        request(app)
+            .put('/api/auth/updatepassword')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ currentPassword, newPassword });
+
+    it('accepts a token at the current version', async () => {
+        const { user } = await register();
+        await me(sign(user.id, { tv: 0 })).expect(200);
+    });
+
+    it('registration and login tokens carry the current tokenVersion', async () => {
+        const { user, token } = await register();
+        expect(jwt.decode(token).tv).toBe(0);
+
+        await User.updateOne({ _id: user.id }, { tokenVersion: 3 });
+        const login = await request(app)
+            .post('/api/auth/login')
+            .send({ email: 'tv@example.com', password: 'password123' })
+            .expect(200);
+        expect(jwt.decode(login.body.data.token).tv).toBe(3);
+        await me(login.body.data.token).expect(200);
+    });
+
+    it('rejects an older-version token', async () => {
+        const { user } = await register();
+        await User.updateOne({ _id: user.id }, { tokenVersion: 1 });
+        await me(sign(user.id, { tv: 0 })).expect(401);
+    });
+
+    it('password change bumps the version, returns a working token and kills the old one', async () => {
+        const { user, token: oldToken } = await register();
+
+        const res = await changePassword(oldToken, 'password123').expect(200);
+        const newToken = res.body.data.token;
+
+        expect(jwt.decode(newToken).tv).toBe(1);
+        const stored = await User.findById(user.id);
+        expect(stored.tokenVersion).toBe(1);
+
+        await me(newToken).expect(200);
+        await me(oldToken).expect(401);
+
+        // New password works for login
+        await request(app)
+            .post('/api/auth/login')
+            .send({ email: 'tv@example.com', password: 'newpassword456' })
+            .expect(200);
+    });
+
+    it('failed password change does not bump the version', async () => {
+        const { user, token } = await register();
+
+        await changePassword(token, 'wrong-password').expect(400);
+
+        const stored = await User.findById(user.id);
+        expect(stored.tokenVersion).toBe(0);
+        await me(token).expect(200);
+    });
+
+    it('accepts a legacy token (no tv) only while the version is 0', async () => {
+        const { user } = await register();
+        const legacy = sign(user.id);
+        await me(legacy).expect(200);
+
+        await User.updateOne({ _id: user.id }, { tokenVersion: 1 });
+        await me(legacy).expect(401);
+    });
+
+    it('still rejects expired tokens and inactive users', async () => {
+        const { user } = await register();
+        const expired = jwt.sign({ id: user.id, tv: 0 }, process.env.JWT_SECRET, { expiresIn: -10 });
+        await me(expired).expect(401);
+
+        await User.updateOne({ _id: user.id }, { isActive: false });
+        await me(sign(user.id, { tv: 0 })).expect(401);
+    });
+
+    it('does not expose tokenVersion in user responses', async () => {
+        const { user, token } = await register();
+        expect(user.tokenVersion).toBeUndefined();
+
+        const meRes = await me(token).expect(200);
+        expect(meRes.body.data.tokenVersion).toBeUndefined();
+
+        const upd = await request(app)
+            .put('/api/auth/updatedetails')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ name: 'Renamed User' })
+            .expect(200);
+        expect(upd.body.data.tokenVersion).toBeUndefined();
+    });
+});
